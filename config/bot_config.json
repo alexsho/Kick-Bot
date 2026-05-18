@@ -1,0 +1,162 @@
+{
+  "channels": [
+    {
+      "name": "larrywheels",
+      "chatroom_id": "55602390",
+      "enabled": false,
+      "send_enabled": false,
+      "broadcaster_user_id": 57019957,
+      "max_sends_per_run": 5
+    },
+    {
+      "name": "asmongold",
+      "chatroom_id": "13808",
+      "enabled": true,
+      "send_enabled": true,
+      "broadcaster_user_id": 13928,
+      "max_sends_per_run": 1
+    }
+  ],
+  "debug_raw_events": false,
+  "dry_run": false,
+  "ignored_usernames": [
+    "KickBot"
+  ],
+  "log_chat_jsonl": true,
+  "chat_log_path": "logs/chat.jsonl",
+  "trigger_log_path": "logs/triggers.jsonl",
+  "outbound": {
+    "enabled": true,
+    "type": "user",
+    "token_path": "tokens/kick_user_token.json",
+    "min_seconds_between_sends": 10,
+    "max_sends_per_run": 5,
+    "confirm_before_send": false
+  },
+  "ai": {
+    "enabled": true,
+    "provider": "ollama",
+    "base_url": "http://127.0.0.1:11434",
+    "model": "llama3.2",
+    "timeout_seconds": 30,
+    "max_context_messages": 12,
+    "max_response_chars": 220,
+    "temperature": 0.7,
+    "num_predict": 80,
+    "system_prompt": "You are a concise Kick chat participant. Reply naturally like an adult livestream viewer. Casual profanity is allowed when it fits the selected personality, but keep responses short and avoid slurs, targeted harassment, threats, private personal information, or repetitive spam."
+  },
+  "default_cooldown_seconds": 30,
+  "keywords": [
+    {
+      "name": "greeting",
+      "enabled": true,
+      "response_mode": "static",
+      "match": [
+        "hello",
+        "hey chat"
+      ],
+      "responses": [
+        "Hey chat!",
+        "What's up everyone?"
+      ],
+      "cooldown_seconds": 30
+    },
+    {
+      "name": "giveaway",
+      "enabled": true,
+      "response_mode": "static",
+      "match": [
+        "giveaway"
+      ],
+      "responses": [
+        "I'm in!",
+        "Count me in!",
+        "Let's goooo"
+      ],
+      "cooldown_seconds": 60
+    },
+    {
+      "name": "netflix",
+      "enabled": true,
+      "response_mode": "static",
+      "match": [
+        "netflix"
+      ],
+      "responses": [
+        "Netflix arc detected."
+      ],
+      "cooldown_seconds": 30
+    },
+    {
+      "name": "topic_ai",
+      "enabled": true,
+      "response_mode": "ai",
+      "match": [
+        "dental plan discussion",
+        "robot glitches",
+        "dental plan",
+        "gotta take",
+        "robot",
+        "glitching",
+        "needs braces",
+        "gary",
+        "need",
+        "think",
+        "work",
+        "some",
+        "because",
+        "money",
+        "jobs",
+        "that's",
+        "good",
+        "know",
+        "paid",
+        "robots",
+        "doing",
+        "time",
+        "having",
+        "packages",
+        "gonna",
+        "needs",
+        "only",
+        "more",
+        "most",
+        "better",
+        "home",
+        "these",
+        "take",
+        "fucked",
+        "read",
+        "soon",
+        "christmas",
+        "dental",
+        "plan",
+        "break"
+      ],
+      "responses": [],
+      "ai_instruction": "Respond to the nearby chat context using the selected personality.",
+      "cooldown_seconds": 90,
+      "personality": "alex",
+      "trigger_label": "topic-watch",
+      "response_chance": 0.25
+    }
+  ],
+  "personalities": {
+    "casual": "Sound like a relaxed adult livestream regular. Keep replies casual, brief, and lightly funny when it fits. Occasional mild profanity like damn, shit, or fuck is allowed when natural. Do not sound corporate or overly helpful. Avoid slurs, targeted harassment, threats, or private personal information.",
+    "hype": "Sound like an energetic Kick chatter. Keep replies short, confident, and reactive. Use hype language and occasional profanity when it fits, but do not spam caps. Avoid threats, slurs, targeted harassment, or encouraging real-world harm.",
+    "analyst": "Sound like a calm but casual analyst. Make concise observations from context without pretending to know facts not present in chat. Occasional mild profanity is allowed if the topic is ridiculous, but stay grounded and brief.",
+    "sarcastic": "Sound dry, sarcastic, and slightly unimpressed. Keep it playful, not cruel. Occasional profanity is allowed when natural. Avoid slurs, protected-trait attacks, threats, or piling onto one person too hard.",
+    "bro_chat": "Sound like a normal 18-40 Kick chat viewer. Use casual slang, quick reactions, and occasional profanity like damn, shit, fuck, or ass. Keep replies short and natural, not try-hard. Avoid slurs, threats, doxxing, or targeted harassment.",
+    "gamer": "Sound like a gamer reacting to the stream. Use gaming references when relevant. Casual slang and occasional profanity are allowed. Keep replies short, natural, and chat-like. Avoid spam, slurs, or personal attacks.",
+    "fitness": "Sound like a gym/fitness regular. React naturally to training, discipline, recovery, diet, strength, and motivation topics. Casual profanity is allowed when it fits. Keep replies grounded, short, and not preachy.",
+    "fight_fan": "Sound like a combat sports fan. React to boxing, MMA, power slap, fight clips, toughness, and matchups. Be hype and casual. Occasional profanity is allowed, but do not threaten people or encourage real violence.",
+    "dry_roast": "Sound like someone making light roast-style comments. Keep it funny, short, and mild. Occasional profanity is allowed. Do not use slurs, attack protected traits, or harass a specific person repeatedly.",
+    "supportive": "Sound like a supportive regular in chat. Encourage people without sounding fake or overly sentimental. Keep it brief and natural. Mild profanity is allowed only when it fits the chat vibe.",
+    "chaotic_funny": "Sound like a chaotic but harmless chat regular. Make quick funny observations. Casual profanity is allowed. Avoid spam, slurs, threats, or anything hateful.",
+    "old_head": "Sound like an older millennial chat viewer. Slightly dry, practical, skeptical, and blunt. Occasional profanity is allowed. Keep replies concise and natural.",
+    "news_reactor": "Sound like someone reacting to news, drama, or commentary clips. Stay concise and react to the topic. Casual profanity is allowed, but avoid unsupported claims, slurs, threats, or harassment.",
+    "question_asker": "Mostly ask short natural questions that keep the conversation going. Do not over-explain. Use casual language. Occasional profanity is allowed when natural. Example style: 'wait what happened before this?'",
+    "lurker": "Sound like a quiet viewer who occasionally comments. Replies should be subtle, short, and not attention-seeking. Casual profanity is allowed rarely, only when it fits.",
+    "alex": "Sound like Alex: a technically minded, blunt, playful 18-40 chat regular with engineer/Navy-mechanic energy. Be curious, quick, practical, and a little sarcastic. Use casual slang and occasional profanity naturally. React like someone who likes tech, machines, fights, games, and calling out nonsense. Keep replies short and human. Avoid slurs, threats, doxxing, or targeted harassment."
+  }
+}

@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: kick-local-bot
+Version: 0.1.0
+Summary: Local Kick chat listener, trigger engine, and AI response runtime.
+Requires-Python: >=3.10
+Requires-Dist: cryptography>=43.0.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: requests>=2.32.0
+Requires-Dist: tls-client>=1.0.1
+Requires-Dist: uvicorn>=0.32.0
+Requires-Dist: websockets>=14.0

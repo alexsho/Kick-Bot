@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kick Local Bot</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101211;
+      --panel: #181d1a;
+      --panel2: #202720;
+      --line: #313a34;
+      --text: #edf4ef;
+      --muted: #9aa89e;
+      --accent: #49d17d;
+      --warn: #f1c15d;
+      --bad: #f06d6d;
+      --focus: #67b7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Segoe UI, system-ui, sans-serif;
+      font-size: 14px;
+    }
+    header {
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #151816;
+    }
+    h1, h2, h3 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; }
+    h3 { font-size: 14px; }
+    button, input, select, textarea {
+      border: 1px solid var(--line);
+      background: #111513;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font: inherit;
+      min-width: 0;
+    }
+    button { cursor: pointer; background: #202720; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    button.primary { background: #1f5f3a; border-color: #2f9b5d; }
+    button.danger { background: #5d2424; border-color: #8c3838; }
+    button.small { padding: 5px 8px; }
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      padding: 0;
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) minmax(560px, 720px);
+      gap: 14px;
+      padding: 14px;
+      height: calc(100vh - 56px);
+      min-height: 0;
+    }
+
+    section {
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+    section.settings-panel {
+      overflow: hidden;
+    }
+
+    section.settings-panel .stack {
+      height: calc(100% - 45px);
+      overflow-y: auto;
+      padding-bottom: 32px;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 10px;
+    }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .status { color: var(--muted); }
+    .ok { color: var(--accent); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    .top-actions { justify-content: flex-end; }
+    .chat {
+      height: calc(100% - 45px);
+      overflow: auto;
+      padding: 10px;
+      font-family: Consolas, ui-monospace, monospace;
+      line-height: 1.45;
+    }
+    .msg { border-bottom: 1px solid rgba(255,255,255,.04); padding: 4px 0; }
+    .user { color: var(--accent); }
+    .candidate { color: var(--warn); }
+    .channels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .channel-lookup {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .channel-card {
+      border: 1px solid var(--line);
+      background: #121714;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
+    .channel-card.active { border-color: var(--focus); background: #172118; }
+    .channel-card strong { font-size: 15px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 7px;
+      color: var(--muted);
+      width: fit-content;
+      max-width: 100%;
+    }
+    .tool-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #141916;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    label { color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+    label.inline { flex-direction: row; align-items: center; color: var(--text); }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      font-family: Consolas, ui-monospace, monospace;
+    }
+    textarea.json { min-height: 260px; }
+    textarea.channel-json { min-height: 140px; }
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #141916;
+      padding: 10px;
+    }
+    summary { cursor: pointer; color: var(--text); }
+    .result {
+      white-space: pre-wrap;
+      color: var(--muted);
+      min-height: 20px;
+      margin: 0;
+    }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; height: auto; }
+      section { min-height: 420px; }
+      .grid2, .grid3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Kick Local Bot</h1>
+    <div class="row">
+      <span id="status" class="status">Loading...</span>
+      <span id="dirtyStatus" class="status">Saved</span>
+      <button onclick="saveFromForm()">Apply Changes</button>
+      <button class="primary" onclick="startBot()">Start</button>
+      <button onclick="restartBot()">Restart</button>
+      <button class="danger" onclick="stopBot()">Stop</button>
+    </div>
+  </header>
+  <main>
+    <section>
+      <div class="section-head">
+        <strong>Live Chat</strong>
+        <button onclick="clearChat()">Clear</button>
+      </div>
+      <div id="chat" class="chat"></div>
+    </section>
+      <section class="settings-panel">
+        <div class="section-head">
+          <strong>Channels &amp; Settings</strong>
+        <div class="row top-actions">
+          <button class="primary" onclick="saveFromForm()">Apply Changes</button>
+          <button onclick="refreshConfig()">Refresh</button>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="tool-panel">
+          <div class="between">
+            <h2 id="channelSummary">Channels</h2>
+            <button class="small" onclick="addChannel()">Add Channel</button>
+          </div>
+          <div id="channelCards" class="channels" style="margin-top: 10px;"></div>
+          <div class="channel-lookup">
+            <input id="lookupChannelName" placeholder="channel name or URL" onkeydown="if (event.key === 'Enter') resolveAndAddChannel()" />
+            <button onclick="resolveAndAddChannel()">Lookup & Add</button>
+          </div>
+        </div>
+
+        <div class="tool-panel">
+          <div class="between">
+            <h2 id="selectedTitle">Channel Details</h2>
+            <button class="danger small" onclick="removeSelectedChannel()">Remove</button>
+          </div>
+          <div class="grid2" style="margin-top: 10px;">
+            <label>Channel Name
+              <input id="channelName" />
+            </label>
+            <label>Chatroom ID
+              <input id="chatroomId" />
+            </label>
+            <label>Broadcaster User ID
+              <input id="broadcasterUserId" />
+            </label>
+            <label>Max Sends Per Run
+              <input id="channelMaxSends" type="number" min="0" />
+            </label>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <label class="inline"><input id="channelEnabled" type="checkbox" /> Enabled</label>
+            <label class="inline"><input id="sendEnabled" type="checkbox" /> Allow Sending</label>
+          </div>
+          <details style="margin-top: 10px;">
+            <summary id="channelJsonSummary">Selected Channel JSON</summary>
+            <textarea id="channelJson" class="json channel-json" style="margin-top: 10px;"></textarea>
+            <div class="row" style="margin-top: 10px;">
+              <button onclick="applyChannelJson()">Apply Channel JSON</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="tool-panel">
+          <h2>Bot Behavior</h2>
+          <div class="grid3" style="margin-top: 10px;">
+            <label class="inline"><input id="dryRun" type="checkbox" /> Dry Run</label>
+            <label class="inline"><input id="outboundEnabled" type="checkbox" /> Outbound Enabled</label>
+            <label class="inline"><input id="aiEnabled" type="checkbox" /> AI Enabled</label>
+          </div>
+          <div class="grid2" style="margin-top: 10px;">
+            <label>Outbound Type
+              <select id="outboundType">
+                <option value="user">user</option>
+                <option value="bot">bot</option>
+              </select>
+            </label>
+            <label>Global Max Sends
+              <input id="globalMaxSends" type="number" min="0" />
+            </label>
+          </div>
+        </div>
+
+        <div class="tool-panel">
+          <h2>Topic AI</h2>
+          <div class="grid2" style="margin-top: 10px;">
+            <label>Personality
+              <select id="personality"></select>
+            </label>
+            <label>Response Chance
+              <input id="responseChance" type="range" min="0" max="1" step="0.05" oninput="updateChanceLabel()" />
+              <span id="chanceLabel" class="status"></span>
+            </label>
+          </div>
+          <div class="grid2" style="margin-top: 10px;">
+            <label>Cooldown Seconds
+              <input id="topicCooldown" type="number" min="0" />
+            </label>
+            <label>AI Model
+              <input id="aiModel" />
+            </label>
+          </div>
+          <label style="margin-top: 10px;">Trigger Words / Phrases
+            <textarea id="topicTriggers" placeholder="one trigger per line"></textarea>
+          </label>
+          <label style="margin-top: 10px;">AI Instruction
+            <textarea id="aiInstruction"></textarea>
+          </label>
+        </div>
+
+        <div class="row">
+          <button class="primary" onclick="saveFromForm()">Save Settings</button>
+          <button onclick="testAI()">Test AI</button>
+          <button onclick="suggestTriggers()">Suggest Triggers</button>
+          <button onclick="applySuggestedTriggers()">Apply Suggested Triggers</button>
+        </div>
+
+        <details>
+          <summary>Secrets (.env)</summary>
+          <div class="grid2" style="margin-top: 10px;">
+            <label>Kick Client ID
+              <input id="clientId" autocomplete="off" />
+            </label>
+            <label>Kick Client Secret
+              <input id="clientSecret" type="password" autocomplete="off" />
+            </label>
+            <label>Redirect URI
+              <input id="redirectUri" value="http://localhost:8421/callback" />
+            </label>
+            <label>OAuth Scopes
+              <input id="scopes" value="chat:write user:read channel:read" />
+            </label>
+          </div>
+          <button style="margin-top: 10px;" onclick="saveEnv()">Save .env</button>
+        </details>
+
+        <details>
+          <summary>Advanced JSON</summary>
+          <textarea id="configJson" class="json" style="margin-top: 10px;"></textarea>
+          <div class="row" style="margin-top: 10px;">
+            <button onclick="applyJsonToForm()">Apply JSON To Form</button>
+            <button onclick="saveJsonDirect()">Save Raw JSON</button>
+          </div>
+        </details>
+
+        <pre id="result" class="result"></pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const chat = document.getElementById('chat');
+    const statusEl = document.getElementById('status');
+    const dirtyStatus = document.getElementById('dirtyStatus');
+    const result = document.getElementById('result');
+    let currentConfig = null;
+    let selectedChannelIndex = 0;
+    let hasUnsavedChanges = false;
+    let lastSuggestedTriggers = [];
+
+    const configFieldIds = new Set([
+      'channelName',
+      'chatroomId',
+      'broadcasterUserId',
+      'channelMaxSends',
+      'channelEnabled',
+      'sendEnabled',
+      'dryRun',
+      'outboundEnabled',
+      'outboundType',
+      'globalMaxSends',
+      'aiEnabled',
+      'personality',
+      'responseChance',
+      'topicCooldown',
+      'aiModel',
+      'topicTriggers',
+      'aiInstruction'
+    ]);
+
+    function setDirty(isDirty) {
+      hasUnsavedChanges = isDirty;
+      dirtyStatus.textContent = isDirty ? 'Unsaved changes' : 'Saved';
+      dirtyStatus.className = isDirty ? 'warn' : 'status';
+    }
+
+    function markDirty(target = null) {
+      if (!currentConfig) return;
+      setDirty(true);
+      if (target?.id === 'responseChance') updateChanceLabel();
+    }
+
+    document.addEventListener('input', event => {
+      if (configFieldIds.has(event.target.id)) markDirty(event.target);
+    });
+
+    document.addEventListener('change', event => {
+      if (configFieldIds.has(event.target.id)) markDirty(event.target);
+    });
+
+    function addLine(html, cls = 'msg') {
+      const div = document.createElement('div');
+      div.className = cls;
+      div.innerHTML = html;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      while (chat.children.length > 500) chat.firstChild.remove();
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
+    }
+
+    function topicRule() {
+      currentConfig.keywords ||= [];
+      let rule = currentConfig.keywords.find(item => item.response_mode === 'ai');
+      if (!rule) {
+        rule = {
+          name: 'topic_ai',
+          enabled: true,
+          response_mode: 'ai',
+          match: [],
+          responses: [],
+          ai_instruction: 'Respond to nearby chat context using the selected personality.',
+          cooldown_seconds: 45,
+          personality: 'casual',
+          trigger_label: 'topic-watch',
+          response_chance: 0.35
+        };
+        currentConfig.keywords.push(rule);
+      }
+      return rule;
+    }
+
+    function selectedChannel() {
+      currentConfig.channels ||= [];
+      if (!currentConfig.channels.length) addChannel(false);
+      selectedChannelIndex = Math.min(selectedChannelIndex, currentConfig.channels.length - 1);
+      return currentConfig.channels[selectedChannelIndex];
+    }
+
+    function renderChannels() {
+      const cards = document.getElementById('channelCards');
+      const channels = currentConfig.channels || [];
+      document.getElementById('channelSummary').textContent =
+        channels.length === 1 ? `Connected channel: ${channels[0].name}` : `Connected channels: ${channels.length}`;
+      cards.innerHTML = '';
+      channels.forEach((channel, index) => {
+        const button = document.createElement('button');
+        button.className = `channel-card ${index === selectedChannelIndex ? 'active' : ''}`;
+        button.onclick = () => {
+          if (hasUnsavedChanges) readFormIntoConfig();
+          selectedChannelIndex = index;
+          renderAll();
+        };
+        button.innerHTML = `
+          <strong>${escapeHtml(channel.name || 'unnamed')}</strong>
+          <span class="pill">${channel.enabled ? 'enabled' : 'disabled'}</span>
+          <span class="status">chatroom ${escapeHtml(channel.chatroom_id || 'missing')}</span>
+          <span class="${channel.send_enabled ? 'warn' : 'status'}">${channel.send_enabled ? 'sending allowed' : 'send locked'}</span>
+        `;
+        cards.appendChild(button);
+      });
+    }
+
+    function renderDetails() {
+      const channel = selectedChannel();
+      const rule = topicRule();
+      const personalities = currentConfig.personalities || {};
+      document.getElementById('selectedTitle').textContent = `${channel.name || 'Channel'} Details`;
+      document.getElementById('channelName').value = channel.name || '';
+      document.getElementById('chatroomId').value = channel.chatroom_id || '';
+      document.getElementById('broadcasterUserId').value = channel.broadcaster_user_id ?? '';
+      document.getElementById('channelMaxSends').value = channel.max_sends_per_run ?? 1;
+      document.getElementById('channelEnabled').checked = channel.enabled !== false;
+      document.getElementById('sendEnabled').checked = Boolean(channel.send_enabled);
+      document.getElementById('channelJsonSummary').textContent = `JSON for kick.com/${channel.name || 'channel'}`;
+      document.getElementById('channelJson').value = JSON.stringify(channel, null, 2);
+      document.getElementById('dryRun').checked = Boolean(currentConfig.dry_run);
+      document.getElementById('outboundEnabled').checked = Boolean(currentConfig.outbound?.enabled);
+      document.getElementById('outboundType').value = currentConfig.outbound?.type || 'user';
+      document.getElementById('globalMaxSends').value = currentConfig.outbound?.max_sends_per_run ?? 1;
+      document.getElementById('aiEnabled').checked = Boolean(currentConfig.ai?.enabled);
+      document.getElementById('aiModel').value = currentConfig.ai?.model || 'llama3.2';
+      document.getElementById('topicTriggers').value = (rule.match || []).join('\n');
+      document.getElementById('aiInstruction').value = rule.ai_instruction || '';
+      document.getElementById('topicCooldown').value = rule.cooldown_seconds ?? 45;
+      document.getElementById('responseChance').value = rule.response_chance ?? 0.35;
+      const personality = document.getElementById('personality');
+      personality.innerHTML = '';
+      Object.keys(personalities).forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        personality.appendChild(option);
+      });
+      personality.value = rule.personality || Object.keys(personalities)[0] || 'casual';
+      document.getElementById('configJson').value = JSON.stringify(currentConfig, null, 2);
+      updateChanceLabel();
+    }
+
+    function renderAll() {
+      renderChannels();
+      renderDetails();
+    }
+
+    function updateChanceLabel() {
+      const value = Number(document.getElementById('responseChance').value || 0);
+      document.getElementById('chanceLabel').textContent = `${Math.round(value * 100)}%`;
+    }
+
+    function readFormIntoConfig() {
+      const channel = selectedChannel();
+      channel.name = document.getElementById('channelName').value.trim();
+      channel.chatroom_id = document.getElementById('chatroomId').value.trim();
+      channel.broadcaster_user_id = numberOrNull(document.getElementById('broadcasterUserId').value);
+      channel.max_sends_per_run = numberOrNull(document.getElementById('channelMaxSends').value);
+      channel.enabled = document.getElementById('channelEnabled').checked;
+      channel.send_enabled = document.getElementById('sendEnabled').checked;
+
+      currentConfig.outbound ||= {};
+      currentConfig.ai ||= {};
+      currentConfig.dry_run = document.getElementById('dryRun').checked;
+      currentConfig.outbound.enabled = document.getElementById('outboundEnabled').checked;
+      currentConfig.outbound.type = document.getElementById('outboundType').value;
+      currentConfig.outbound.max_sends_per_run = numberOrNull(document.getElementById('globalMaxSends').value);
+      currentConfig.ai.enabled = document.getElementById('aiEnabled').checked;
+      currentConfig.ai.model = document.getElementById('aiModel').value.trim();
+
+      const rule = topicRule();
+      rule.enabled = true;
+      rule.response_mode = 'ai';
+      rule.match = document.getElementById('topicTriggers').value
+        .split('\n')
+        .map(item => item.trim())
+        .filter(Boolean);
+      rule.personality = document.getElementById('personality').value;
+      rule.response_chance = Number(document.getElementById('responseChance').value || 0);
+      rule.cooldown_seconds = Number(document.getElementById('topicCooldown').value || 0);
+      rule.ai_instruction = document.getElementById('aiInstruction').value.trim();
+      document.getElementById('configJson').value = JSON.stringify(currentConfig, null, 2);
+    }
+
+    function numberOrNull(value) {
+      if (value === null || value === undefined || String(value).trim() === '') return null;
+      return Number(value);
+    }
+
+    async function loadAll() {
+      const [status, config, env] = await Promise.all([
+        api('/api/status'),
+        api('/api/config'),
+        api('/api/env')
+      ]);
+      currentConfig = config;
+      statusEl.textContent = status.running ? 'Running' : 'Stopped';
+      statusEl.className = status.running ? 'ok' : 'status';
+      document.getElementById('redirectUri').value = env.KICK_REDIRECT_URI || 'http://localhost:8421/callback';
+      document.getElementById('scopes').value = env.KICK_OAUTH_SCOPES || 'chat:write user:read channel:read';
+      document.getElementById('clientId').placeholder = env.KICK_CLIENT_ID ? 'saved' : 'missing';
+      document.getElementById('clientSecret').placeholder = env.KICK_CLIENT_SECRET ? 'saved' : 'missing';
+      renderAll();
+      setDirty(false);
+    }
+
+    async function refreshConfig() {
+      if (hasUnsavedChanges && !confirm('Refresh will discard unsaved dashboard changes. Continue?')) {
+        return;
+      }
+      await loadAll();
+      result.textContent = 'Config reloaded from disk.';
+    }
+
+    async function saveFromForm(options = {}) {
+      readFormIntoConfig();
+      await api('/api/config', { method: 'PUT', body: JSON.stringify(currentConfig) });
+      renderAll();
+      setDirty(false);
+      if (!options.quiet) {
+        result.textContent = 'Settings applied. Restart the bot if it is already running.';
+      }
+    }
+
+    function applyJsonToForm() {
+      currentConfig = JSON.parse(document.getElementById('configJson').value);
+      selectedChannelIndex = 0;
+      renderAll();
+      setDirty(true);
+      result.textContent = 'JSON applied to form. Apply changes to write it.';
+    }
+
+    async function saveJsonDirect() {
+      currentConfig = JSON.parse(document.getElementById('configJson').value);
+      await api('/api/config', { method: 'PUT', body: JSON.stringify(currentConfig) });
+      result.textContent = 'Raw JSON saved. Restart the bot to apply runtime changes.';
+      renderAll();
+      setDirty(false);
+    }
+
+    function applyChannelJson() {
+      currentConfig.channels[selectedChannelIndex] = JSON.parse(document.getElementById('channelJson').value);
+      renderAll();
+      setDirty(true);
+      result.textContent = 'Channel JSON applied. Apply changes to write it.';
+    }
+
+    function addChannel(render = true) {
+      if (hasUnsavedChanges) readFormIntoConfig();
+      currentConfig.channels ||= [];
+      currentConfig.channels.push({
+        name: `channel${currentConfig.channels.length + 1}`,
+        chatroom_id: '',
+        enabled: true,
+        send_enabled: false,
+        broadcaster_user_id: null,
+        max_sends_per_run: 1
+      });
+      selectedChannelIndex = currentConfig.channels.length - 1;
+      setDirty(true);
+      if (render) renderAll();
+    }
+
+    async function resolveAndAddChannel() {
+      const lookupInput = document.getElementById('lookupChannelName');
+      const channelName = lookupInput.value.trim();
+      if (!channelName) {
+        result.textContent = 'Enter a Kick channel name first.';
+        return;
+      }
+
+      if (hasUnsavedChanges) readFormIntoConfig();
+      result.textContent = `Looking up ${channelName}...`;
+
+      try {
+        const resolved = await api('/api/channel/resolve', {
+          method: 'POST',
+          body: JSON.stringify({ channel: channelName })
+        });
+        const resolvedChannel = resolved.channel;
+        currentConfig.channels ||= [];
+        const resolvedName = String(resolvedChannel.name || '').toLowerCase();
+        const existingIndex = currentConfig.channels.findIndex(
+          channel => String(channel.name || '').toLowerCase() === resolvedName
+        );
+
+        if (existingIndex >= 0) {
+          const existing = currentConfig.channels[existingIndex];
+          currentConfig.channels[existingIndex] = {
+            ...existing,
+            name: resolvedChannel.name,
+            chatroom_id: resolvedChannel.chatroom_id,
+            broadcaster_user_id: resolvedChannel.broadcaster_user_id ?? existing.broadcaster_user_id,
+            enabled: existing.enabled ?? resolvedChannel.enabled,
+            send_enabled: existing.send_enabled ?? resolvedChannel.send_enabled,
+            max_sends_per_run: existing.max_sends_per_run ?? resolvedChannel.max_sends_per_run
+          };
+          selectedChannelIndex = existingIndex;
+        } else {
+          currentConfig.channels.push(resolvedChannel);
+          selectedChannelIndex = currentConfig.channels.length - 1;
+        }
+
+        setDirty(true);
+        renderAll();
+        lookupInput.value = '';
+        const warnings = resolved.details?.warnings || [];
+        result.textContent = [
+          `Resolved kick.com/${resolvedChannel.name}. Apply changes to save it.`,
+          `chatroom_id: ${resolvedChannel.chatroom_id}`,
+          `broadcaster_user_id: ${resolvedChannel.broadcaster_user_id ?? 'not found'}`,
+          ...warnings.map(warning => `Warning: ${warning}`)
+        ].join('\n');
+      } catch (err) {
+        result.textContent = `Channel lookup failed: ${err.message}`;
+      }
+    }
+
+    function removeSelectedChannel() {
+      if (!currentConfig.channels || currentConfig.channels.length <= 1) {
+        result.textContent = 'Keep at least one channel configured.';
+        return;
+      }
+      if (hasUnsavedChanges) readFormIntoConfig();
+      currentConfig.channels.splice(selectedChannelIndex, 1);
+      selectedChannelIndex = Math.max(0, selectedChannelIndex - 1);
+      setDirty(true);
+      renderAll();
+    }
+
+    async function saveEnv() {
+      await api('/api/env', {
+        method: 'PUT',
+        body: JSON.stringify({
+          KICK_CLIENT_ID: document.getElementById('clientId').value,
+          KICK_CLIENT_SECRET: document.getElementById('clientSecret').value,
+          KICK_REDIRECT_URI: document.getElementById('redirectUri').value,
+          KICK_OAUTH_SCOPES: document.getElementById('scopes').value
+        })
+      });
+      result.textContent = '.env saved.';
+      document.getElementById('clientSecret').value = '';
+      if (!hasUnsavedChanges) await loadAll();
+    }
+
+    async function startBot() {
+      await saveFromForm({ quiet: true });
+      await api('/api/bot/start', { method: 'POST' });
+      await loadAll();
+      result.textContent = 'Settings applied and bot started.';
+    }
+
+    async function restartBot() {
+      await saveFromForm({ quiet: true });
+      await api('/api/bot/stop', { method: 'POST' });
+      await api('/api/bot/start', { method: 'POST' });
+      await loadAll();
+      result.textContent = 'Settings applied and bot restarted.';
+    }
+
+    async function stopBot() {
+      await api('/api/bot/stop', { method: 'POST' });
+      if (!hasUnsavedChanges) await loadAll();
+    }
+
+    async function testAI() {
+      readFormIntoConfig();
+      const response = await api('/api/test/ai', {
+        method: 'POST',
+        body: JSON.stringify({
+          content: `${topicRule().match?.[0] || 'ngannou'} just got a huge ko`,
+          personality: topicRule().personality || 'hype'
+        })
+      });
+      result.textContent = response.ok ? response.text : response.error;
+    }
+
+    async function suggestTriggers() {
+      readFormIntoConfig();
+
+      const channel = selectedChannel();
+      result.textContent = `Suggesting triggers for ${channel.name || 'selected channel'}...`;
+
+      try {
+        const response = await api('/api/triggers/suggest', {
+          method: 'POST',
+          body: JSON.stringify({
+            channel: channel.name,
+            max_messages: 300,
+            use_ai: true
+          })
+        });
+
+        if (!response.ok) {
+          result.textContent = response.error || 'Trigger suggestion failed.';
+          return;
+        }
+
+        lastSuggestedTriggers = response.copy_paste_trigger_list || [];
+
+        const recommended = (response.recommended_triggers || [])
+          .map(item => {
+            const trigger = item.trigger || '';
+            const confidence = item.confidence ?? '';
+            const reason = item.reason || '';
+            return `- ${trigger} (${confidence}) — ${reason}`;
+          })
+          .join('\n');
+
+        const avoid = (response.avoid_triggers || [])
+          .map(item => `- ${item.trigger || ''} — ${item.reason || ''}`)
+          .join('\n');
+
+        result.textContent = [
+          `Trigger suggestions for ${response.channel || channel.name}`,
+          `Messages analyzed: ${response.message_count}`,
+          '',
+          response.summary ? `Summary: ${response.summary}` : '',
+          '',
+          'Recommended:',
+          recommended || '(none)',
+          '',
+          'Avoid:',
+          avoid || '(none)',
+          '',
+          response.ai_error ? `AI warning: ${response.ai_error}` : '',
+          '',
+          'Copy/paste trigger list:',
+          lastSuggestedTriggers.join('\n')
+        ].filter(Boolean).join('\n');
+
+      } catch (err) {
+        result.textContent = `Trigger suggestion failed: ${err.message}`;
+      }
+    }
+
+    function applySuggestedTriggers() {
+      if (!lastSuggestedTriggers.length) {
+        result.textContent = 'No suggested triggers available yet. Click Suggest Triggers first.';
+        return;
+      }
+
+      const triggerBox = document.getElementById('topicTriggers');
+      triggerBox.value = lastSuggestedTriggers.join('\n');
+
+      readFormIntoConfig();
+      renderAll();
+      setDirty(true);
+
+      result.textContent = 'Suggested triggers applied to the form. Click Apply Changes or Restart to save them.';
+    }
+
+    function clearChat() {
+      chat.innerHTML = '';
+    }
+
+    function connectWs() {
+      const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/events`);
+      ws.onmessage = event => {
+        const data = JSON.parse(event.data);
+      if (data.type === 'chat') {
+          const channel = data.channel ? `<span class="status">[${escapeHtml(data.channel)}]</span> ` : '';
+          addLine(`${channel}<span class="user">${escapeHtml(data.username)}</span>: ${escapeHtml(data.content)}`);
+        } else if (data.type === 'trigger') {
+          addLine(`[${escapeHtml(data.response_mode)}] ${escapeHtml(data.channel)} ${escapeHtml(data.rule_name)} / ${escapeHtml(data.matched_phrase)}: ${escapeHtml(data.response)}`, 'msg candidate');
+        } else if (data.type === 'status') {
+          addLine(`[status] ${escapeHtml(data.message)}`);
+          if (!hasUnsavedChanges) loadAll().catch(() => {});
+        } else if (data.type === 'subscription') {
+          addLine(`[subscription] ${escapeHtml(data.channel)} connected`);
+        }
+        else if (data.type === 'speech') {
+          const channel = data.channel ? `<span class="status">[speech/${escapeHtml(data.channel)}]</span> ` : '';
+          addLine(`${channel}<span class="user">${escapeHtml(data.username)}</span>: ${escapeHtml(data.content)}`);
+        } else if (data.type === 'speech_trigger') {
+          addLine(`[speech-ai] ${escapeHtml(data.channel)} ${escapeHtml(data.rule_name)} / ${escapeHtml(data.matched_phrase)}: ${escapeHtml(data.response)}`, 'msg candidate');
+        }
+      };
+      ws.onclose = () => setTimeout(connectWs, 1000);
+    }
+
+    loadAll().catch(err => result.textContent = err.message);
+    connectWs();
+  </script>
+</body>
+</html>
