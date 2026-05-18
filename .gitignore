@@ -13,7 +13,7 @@ pip-wheel-metadata/
 venv/
 env/
 
-# Runtime/local files
+# Runtime/local secrets and generated files
 .env
 .env.*
 !.env.example
@@ -21,12 +21,19 @@ tokens/
 logs/
 *.log
 
+# Local runtime config
+config/bot_config.json
+!config/bot_config.example.json
+
+# Old local/archive scripts
+archive/
+
 # OS/editor junk
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-# Local model/cache artifacts if they ever appear in project
+# Local model/cache artifacts
 .cache/
 models/
