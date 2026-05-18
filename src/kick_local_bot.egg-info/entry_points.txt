@@ -1,9 +1,0 @@
-[console_scripts]
-kick-bot = kick_bot.listener:main
-kick-bot-add-channel = kick_bot.add_channel:main
-kick-bot-channel-lookup = kick_bot.channel_lookup:main
-kick-bot-config = kick_bot.config_tool:main
-kick-bot-login = kick_bot.oauth_login:main
-kick-bot-migrate-config = kick_bot.migrate_config:main
-kick-bot-test-ai = kick_bot.test_ai_response:main
-kick-bot-web = kick_bot.web_app:main

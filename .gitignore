@@ -1,8 +1,32 @@
+# Python cache/build artifacts
 __pycache__/
 *.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# Virtual environments
 .venv/
 venv/
-logs/
-tokens/
-*.log
+env/
+
+# Runtime/local files
 .env
+.env.*
+!.env.example
+tokens/
+logs/
+*.log
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local model/cache artifacts if they ever appear in project
+.cache/
+models/
