@@ -1,55 +1,45 @@
 # Kick Local Bot
 
-Local Python Kick chat listener with keyword triggers, local Ollama AI response candidates, OAuth-based chat sending, and safety limits.
+A local Python-based Kick chatbot framework with live chat monitoring, keyword triggers, Ollama-powered AI responses, OAuth chat sending, web dashboard controls, and local speech-to-text stream awareness.
 
-## What It Does
+## Features
 
 - Connects to Kick livestream chat through the Pusher websocket.
 - Watches one or more configured channels.
-- Prints and logs live chat.
+- Prints and logs live chat locally.
 - Detects static keyword triggers.
 - Sends selected trigger context to local Ollama for AI response candidates.
 - Can post through Kick's official `chat:write` API after OAuth setup.
-- Defaults to dry-run mode so it does not send messages until explicitly enabled.
-
-## Fast Start From Scratch
-
-Run these first from PowerShell:
-
-```powershell
-cd D:\work\Kick_Bot
-python --version
-python -m pip install -e .
-kick-bot
-```
-
-The important install command is:
-
-```powershell
-python -m pip install -e .
-```
-
-That means: use Python to run `pip`, install this current folder, and keep it editable while you are developing.
+- Includes a local browser dashboard for configuration and runtime control.
+- Supports local speech-to-text from Kick stream audio using FFmpeg, yt-dlp, and faster-whisper.
+- Defaults to dry-run / no-send behavior in the example config.
 
 ## Project Layout
 
 ```text
-config/             local bot configuration
+config/             local configuration examples
 docs/               architecture and command notes
-logs/               runtime chat/trigger logs
 src/kick_bot/       application source
-tokens/             local OAuth token files
+src/kick_bot/web/   dashboard UI
 tools/              helper scripts
-archive/            old pre-package scripts
 ```
 
-## 1. Requirements
+Runtime-only local folders are intentionally ignored by Git:
 
-- Windows with Python 3.10+
+```text
+logs/               generated chat/trigger logs
+tokens/             OAuth token files
+.env                local OAuth client settings
+config/bot_config.json
+```
+
+## Requirements
+
+- Python 3.10+
 - A Kick account
-- A Kick developer app for OAuth sending
-- Ollama for local AI responses
-- FFmpeg for speech-to-text stream audio
+- A Kick developer app, only required for OAuth chat sending
+- Ollama, only required for local AI responses
+- FFmpeg, only required for speech-to-text stream audio
 
 Check Python:
 
@@ -57,16 +47,20 @@ Check Python:
 python --version
 ```
 
-## 2. Install The Project
+## Installation
 
-From the project folder:
+Clone the repository:
 
 ```powershell
-cd D:\work\Kick_Bot
-python -m pip install -e .
+git clone https://github.com/alexsho/Kick-Bot.git
+cd Kick-Bot
 ```
 
-If that succeeds, you can use the project commands directly from the terminal.
+Install in editable mode:
+
+```powershell
+python -m pip install -e .
+```
 
 This installs command shortcuts such as:
 
@@ -78,84 +72,77 @@ kick-bot-login
 kick-bot-channel-lookup
 kick-bot-test-ai
 kick-bot-speech
+kick-bot-suggest-triggers
 ```
 
-You can also use the wrapper scripts without installing:
+## First-Time Local Setup
+
+Create your local environment file:
 
 ```powershell
-python .\run_bot.py
-python .\configure.py --help
+copy .env.example .env
 ```
 
-## 3. Configure A Kick Channel
+Create your local runtime config:
 
-The main config file is:
+```powershell
+copy config\bot_config.example.json config\bot_config.json
+```
+
+On Git Bash or macOS/Linux:
+
+```bash
+cp .env.example .env
+cp config/bot_config.example.json config/bot_config.json
+```
+
+Then edit:
 
 ```text
-config\bot_config.json
+.env
+config/bot_config.json
 ```
 
-Each channel needs:
+Do not commit `.env`, `tokens/`, `logs/`, or `config/bot_config.json`.
+
+## Configure a Kick Channel
+
+The runtime config file is:
+
+```text
+config/bot_config.json
+```
+
+Each channel entry looks like:
 
 ```json
 {
-  "name": "rampagejackson",
-  "chatroom_id": "5512091",
+  "name": "example_channel",
+  "chatroom_id": "",
   "enabled": true,
   "send_enabled": false,
-  "broadcaster_user_id": 5633492,
+  "broadcaster_user_id": null,
   "max_sends_per_run": 1
 }
 ```
 
-To get a `chatroom_id`, open the Kick channel in your browser and inspect:
-
-```text
-https://kick.com/api/v2/channels/CHANNEL_NAME/chatroom
-```
-
-Use the returned `id` as `chatroom_id`.
-
-You can also let the project do this lookup for you:
+You can add/resolve a channel with:
 
 ```powershell
-.\tools\add_kick_channel.ps1 rampagejackson
+kick-bot-add-channel CHANNEL_NAME
 ```
 
 or:
 
 ```powershell
-python -m kick_bot.add_channel rampagejackson
+python -m kick_bot.add_channel CHANNEL_NAME
 ```
 
-That resolves `chatroom_id` from Kick's web chatroom endpoint and resolves
-`broadcaster_user_id` from the official Kick API when your OAuth token is available.
-If the chatroom endpoint returns `403`, install the browser-like TLS helper:
+The dashboard also has a **Lookup & Add** button that can add a channel by name.
 
-```powershell
-python -m pip install tls-client
-```
+## Run the Web Dashboard
 
-## 4. Run Chat Listener In Dry Run
-
-```powershell
-cd D:\work\Kick_Bot
-python .\run_bot.py
-```
-
-or:
-
-```powershell
-kick-bot
-```
-
-You should see subscription output, then live chat messages.
-
-Dry-run means the bot can print response candidates but cannot post.
-
-## 4b. Run The Browser Dashboard
-
-Start the local control panel:
+Start the local dashboard:
 
 ```powershell
 kick-bot-web
@@ -164,7 +151,7 @@ kick-bot-web
 or:
 
 ```powershell
-python .\web_dashboard.py
+python -m kick_bot.web_app
 ```
 
 Then open:
@@ -173,22 +160,157 @@ Then open:
 http://127.0.0.1:8080
 ```
 
-The dashboard can start/stop the bot, show live chat, edit config, save `.env` values, and test Ollama.
-It shows configured channels as cards, so you can click `rampagejackson`, edit its IDs/settings, or add another channel for multi-channel listening.
-Use `Lookup & Add` to add a channel by name without manually finding the IDs.
-Use `Apply Changes` after edits. `Start` and `Restart` also apply the visible settings before launching the listener.
+The dashboard can:
+
+- start and stop the bot
+- show live chat
+- show speech-to-text events
+- edit channel settings
+- edit AI/trigger settings
+- save `.env` values
+- test Ollama
+- suggest trigger words from recent chat/speech context
 
 The dashboard is local HTTP only by default. Do not expose it to the public internet without authentication and HTTPS.
 
-## 4c. Speech-to-Text Stream Audio
+## Run the Chat Listener
 
-The bot can also listen to Kick stream audio and transcribe it locally using faster-whisper. This is separate from typed chat: the stream audio is converted into a `StreamAudio` pseudo-message, then passed through the same keyword trigger, AI response, send limiter, and Kick sender pipeline used by normal chat.
+After configuring at least one channel:
+
+```powershell
+kick-bot
+```
+
+or:
+
+```powershell
+python -m kick_bot.listener
+```
+
+Dry-run mode means the bot can print response candidates but cannot post.
+
+## Local AI with Ollama
+
+Install Ollama:
+
+```text
+https://ollama.com/download
+```
+
+Pull a local model:
+
+```powershell
+ollama pull llama3.2
+```
+
+Test AI:
+
+```powershell
+kick-bot-test-ai
+```
+
+or:
+
+```powershell
+python -m kick_bot.test_ai_response
+```
+
+To enable AI candidates while keeping live posting disabled:
+
+```powershell
+kick-bot-config --preset ai-dry-run --ai-trigger "game" --ai-trigger "clip" --personality casual --response-chance 0.25
+kick-bot
+```
+
+Expected output when a trigger matches:
+
+```text
+[AI RESPONSE CANDIDATE] channel_name topic_ai/game: ...
+```
+
+## OAuth Setup for Live Chat Sending
+
+Live posting requires a Kick developer app and OAuth token.
+
+Create a Kick developer app at:
+
+```text
+https://kick.com/settings/developer
+```
+
+Use this redirect URL:
+
+```text
+http://localhost:8421/callback
+```
+
+Required scopes:
+
+```text
+chat:write user:read channel:read
+```
+
+Add your values to `.env`:
+
+```env
+KICK_CLIENT_ID=
+KICK_CLIENT_SECRET=
+KICK_OAUTH_SCOPES=chat:write user:read channel:read
+KICK_REDIRECT_URI=http://localhost:8421/callback
+```
+
+Run OAuth login:
+
+```powershell
+kick-bot-login
+```
+
+or:
+
+```powershell
+python -m kick_bot.oauth_login
+```
+
+The token is saved locally:
+
+```text
+tokens/kick_user_token.json
+```
+
+Do not commit `.env` or `tokens/`.
+
+## One Confirmed Live Send Test
+
+A safe first live-send setup should use:
+
+```json
+{
+  "dry_run": false,
+  "outbound": {
+    "enabled": true,
+    "confirm_before_send": true,
+    "max_sends_per_run": 1
+  }
+}
+```
+
+The target channel must also have:
+
+```json
+"send_enabled": true
+```
+
+When confirmation is enabled, the bot asks in the terminal before posting. Only the exact confirmation input will send.
+
+## Speech-to-Text Stream Audio
+
+The bot can listen to Kick stream audio and transcribe it locally. The transcript becomes a `StreamAudio` pseudo-message, then passes through the same trigger, AI, send-limit, and Kick-sender pipeline as normal chat.
 
 Pipeline:
 
 ```text
 Kick stream
-→ yt-dlp resolves the temporary m3u8 stream URL
+→ yt-dlp resolves a temporary m3u8 stream URL
 → FFmpeg extracts audio
 → faster-whisper transcribes locally
 → transcript appears as StreamAudio
@@ -197,20 +319,10 @@ Kick stream
 → KickChatSender posts if outbound is enabled
 ```
 
-External requirement:
-
-- FFmpeg must be installed and available on PATH.
-
-Check FFmpeg:
+Install FFmpeg and make sure it is available on PATH:
 
 ```powershell
 ffmpeg -version
-```
-
-If Windows cannot find `ffmpeg`, verify the WinGet link path or add the folder containing `ffmpeg.exe` to PATH. A common WinGet path is:
-
-```text
-C:\Users\Alexander\AppData\Local\Microsoft\WinGet\Links
 ```
 
 Install speech dependencies:
@@ -228,19 +340,19 @@ python -m yt_dlp --list-impersonate-targets
 Resolve a Kick stream URL manually:
 
 ```powershell
-python -m yt_dlp -g --impersonate "Chrome-110:Windows-10" https://kick.com/larrywheels
+python -m yt_dlp -g --impersonate "Chrome-110:Windows-10" https://kick.com/CHANNEL_NAME
 ```
 
 Run the speech listener manually:
 
 ```powershell
-python -m kick_bot.speech_listener --channel larrywheels --chunk-seconds 8 --model small --device cpu
+kick-bot-speech --channel CHANNEL_NAME --chunk-seconds 8 --model small --device cpu
 ```
 
-If installed as an editable package, you can also use:
+or:
 
 ```powershell
-kick-bot-speech --channel larrywheels --chunk-seconds 8 --model small --device cpu
+python -m kick_bot.speech_listener --channel CHANNEL_NAME --chunk-seconds 8 --model small --device cpu
 ```
 
 CPU-friendly starting settings:
@@ -251,14 +363,12 @@ chunk_seconds: 8 to 10
 device: cpu
 ```
 
-Dashboard-integrated speech events appear in the live feed as:
+Dashboard speech events appear as:
 
 ```text
 [speech/channel] StreamAudio: transcript text
 [speech-ai] channel topic_ai / trigger: generated response
 ```
-
-The speech listener loads config at startup. After changing trigger words, enabled channels, response chance, cooldown, or outbound settings, click `Apply Changes`, then `Restart`.
 
 Speech-to-text can mishear livestream audio. Use conservative live-send settings at first:
 
@@ -271,161 +381,42 @@ Speech-to-text can mishear livestream audio. Use conservative live-send settings
 }
 ```
 
-## 5. Install And Test Ollama
+## Trigger Suggestions
 
-Install Ollama for Windows:
+The project can suggest trigger words from recent logged chat/speech context.
 
-```text
-https://ollama.com/download/windows
-```
-
-If `ollama` is not on PATH, this helper finds the normal Windows install path:
+Run from the command line:
 
 ```powershell
-.\tools\setup_ollama_model.ps1 llama3.2
-```
-
-Manual setup:
-
-```powershell
-& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" --version
-& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" pull llama3.2
-```
-
-Test AI:
-
-```powershell
-kick-bot-test-ai
-kick-bot-speech
+kick-bot-suggest-triggers --channel CHANNEL_NAME
 ```
 
 or:
 
 ```powershell
-python -m kick_bot.test_ai_response
+python -m kick_bot.trigger_suggester --channel CHANNEL_NAME
 ```
 
-## 6. Enable AI Candidates
+The dashboard can also suggest triggers from recent live events. Review suggestions before applying them.
 
-This keeps sending disabled, but turns on local AI response candidates:
+## Day-to-Day Commands
+
+Run dashboard:
 
 ```powershell
-kick-bot-config --preset ai-dry-run --ai-trigger ngannou --ai-trigger netflix --ai-trigger "sold out" --personality hype --response-chance 0.35
-kick-bot
+kick-bot-web
 ```
 
-Expected output when a trigger matches:
-
-```text
-[AI RESPONSE CANDIDATE] rampagejackson topic_ai/ngannou: ...
-```
-
-Personality options:
-
-```text
-casual
-hype
-analyst
-```
-
-## 7. Create A Kick Developer App
-
-Go to:
-
-```text
-https://kick.com/settings/developer
-```
-
-Create an app with:
-
-```text
-Application Name: LocalKickBot
-Description: Local testing chatbot for Kick chat
-Redirect URL: http://localhost:8421/callback
-```
-
-Required scopes:
-
-```text
-Read user information
-Write to Chat feed
-Read channel information
-```
-
-Do not paste your client secret into chat or source files.
-
-## 8. Run OAuth Login
-
-PowerShell:
-
-```powershell
-cd D:\work\Kick_Bot
-.\tools\login_kick_oauth.ps1
-```
-
-MobaXterm/Bash:
-
-```bash
-cd /drives/d/work/Kick_Bot
-chmod +x ./tools/login_kick_oauth.sh
-./tools/login_kick_oauth.sh
-```
-
-The token is saved locally:
-
-```text
-tokens\kick_user_token.json
-```
-
-## 9. Look Up Broadcaster User ID
-
-After OAuth with `channel:read` scope:
-
-```powershell
-kick-bot-channel-lookup
-```
-
-Copy the returned `broadcaster_user_id` into the channel entry in:
-
-```text
-config\bot_config.json
-```
-
-## 10. One Confirmed Live Send Test
-
-This enables one live send, with manual confirmation:
-
-```powershell
-kick-bot-config --channel rampagejackson --broadcaster-user-id 5633492 --preset one-send-live
-kick-bot
-```
-
-When a trigger matches, the bot asks:
-
-```text
-Type 'send' to post to kick.com/rampagejackson: '...':
-```
-
-Only typing exactly:
-
-```text
-send
-```
-
-will post. After one successful send, further sends are blocked for that run.
-
-## 11. Day-To-Day Commands
-
-Run bot:
+Run bot without dashboard:
 
 ```powershell
 kick-bot
 ```
 
-Configure AI dry-run:
+Run speech listener:
 
 ```powershell
-kick-bot-config --preset ai-dry-run --ai-trigger ko --ai-trigger ngannou --personality hype --response-chance 0.25
+kick-bot-speech --channel CHANNEL_NAME --chunk-seconds 8 --model small --device cpu
 ```
 
 Return to safe no-send mode:
@@ -438,33 +429,13 @@ Test AI:
 
 ```powershell
 kick-bot-test-ai
-kick-bot-speech
 ```
 
-## What About Webhooks?
-
-You can ignore webhooks for the current bot.
-
-This project currently uses the **Pusher websocket listener**:
-
-```text
-kick_bot.listener
-```
-
-That is what powers:
+Suggest triggers:
 
 ```powershell
-kick-bot
-python .\run_bot.py
+kick-bot-suggest-triggers --channel CHANNEL_NAME
 ```
-
-The optional webhook file is:
-
-```text
-src\kick_bot\webhook_listener.py
-```
-
-Webhooks are a different official Kick flow where Kick sends events to a public HTTPS server that you control. That can be useful later for official event subscriptions, but it is not needed for the current local chat-reading and AI-response workflow.
 
 ## Safety Checklist
 
@@ -477,7 +448,58 @@ Live posting is off unless all of these are true:
 - send limit has not been reached
 - confirmation prompt is accepted, when enabled
 
+Recommended testing values:
+
+```json
+{
+  "dry_run": true,
+  "outbound": {
+    "enabled": false,
+    "confirm_before_send": true,
+    "max_sends_per_run": 1
+  }
+}
+```
+
 For speech-to-text mode, start with lower response chance and longer cooldown because transcription can be imperfect.
+
+## Webhooks
+
+The current local bot uses the Pusher websocket listener for chat monitoring.
+
+The optional webhook listener is:
+
+```text
+src/kick_bot/webhook_listener.py
+```
+
+Webhooks are a separate official Kick event flow that require a public HTTPS server. They are not required for the local dashboard, chat listener, AI responses, or speech-to-text workflow.
+
+## Public Repo Notes
+
+This repository should include:
+
+```text
+README.md
+pyproject.toml
+requirements.txt
+.env.example
+config/bot_config.example.json
+docs/
+src/
+tools/
+```
+
+This repository should not include:
+
+```text
+.env
+tokens/
+logs/
+config/bot_config.json
+*.egg-info/
+__pycache__/
+```
 
 ## More Notes
 
