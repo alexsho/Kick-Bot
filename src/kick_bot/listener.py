@@ -15,6 +15,8 @@ from websockets.exceptions import ConnectionClosed
 from .ai_responder import AIRequest, OllamaResponder
 from .chat_sender import KickChatSender
 from .env_loader import load_env
+from .response_coordinator import build_coordinated_ai_request
+from .stream_context import StreamContext
 
 
 load_env()
@@ -62,6 +64,11 @@ DEFAULT_CONFIG = {
             "participant: casual, helpful, and brief. Avoid insults, slurs, "
             "harassment, sexual content, and private personal information."
         ),
+    },
+    "vision": {
+        "enabled": False,
+        "model": "llava",
+        "frame_interval_seconds": 4,
     },
     "personalities": {
         "casual": (
@@ -190,6 +197,13 @@ class AIConfig:
     system_prompt: str
 
 
+@dataclass(frozen=True)
+class VisionConfig:
+    enabled: bool
+    model: str
+    frame_interval_seconds: int
+
+
 class SendLimiter:
     def __init__(self, max_sends_per_run: Optional[int]) -> None:
         self.max_sends_per_run = max_sends_per_run
@@ -227,6 +241,7 @@ class BotConfig:
     trigger_log_path: Path
     outbound: OutboundConfig
     ai: AIConfig
+    vision: VisionConfig
     personalities: dict[str, str]
     rules: list[KeywordRule]
 
@@ -260,7 +275,11 @@ EventCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class BotRuntime:
-    def __init__(self, event_callback: Optional[EventCallback] = None) -> None:
+    def __init__(
+        self,
+        event_callback: Optional[EventCallback] = None,
+        stream_context: Optional[StreamContext] = None,
+    ) -> None:
         self.event_callback = event_callback
         self.stop_event = asyncio.Event()
         self.config = load_config()
@@ -285,6 +304,7 @@ class BotRuntime:
             else None
         )
         self.chat_context = ChatContext(self.config.ai.max_context_messages)
+        self.stream_context = stream_context or StreamContext(self.config.ai.max_context_messages * 3)
 
     async def emit(self, event: dict[str, Any]) -> None:
         if self.event_callback:
@@ -295,36 +315,60 @@ class BotRuntime:
 
     async def run_forever(self) -> None:
         backoff_seconds = 1.0
+        vision_task: asyncio.Task[Any] | None = None
 
-        while not self.stop_event.is_set():
-            try:
-                await listen_once(
-                    self.config,
-                    self.keyword_engine,
-                    self.sender,
-                    self.send_limiter,
-                    self.ai_responder,
-                    self.chat_context,
+        if self.config.vision.enabled and self.config.channels:
+            from .vision_listener import run_vision_listener
+
+            channel_name = self.config.channels[0].name
+            vision_task = asyncio.create_task(
+                run_vision_listener(
+                    channel_name=channel_name,
+                    frame_interval_seconds=self.config.vision.frame_interval_seconds,
                     event_callback=self.emit,
                     stop_event=self.stop_event,
+                    stream_context=self.stream_context,
                 )
-                backoff_seconds = 1.0
-            except ConnectionClosed as exc:
-                message = f"Websocket closed: {exc}. Reconnecting in {backoff_seconds:.1f}s"
-                print(message)
-                await self.emit({"type": "status", "level": "warning", "message": message})
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                message = f"Listener error: {exc}. Reconnecting in {backoff_seconds:.1f}s"
-                print(message)
-                await self.emit({"type": "status", "level": "error", "message": message})
+            )
 
-            try:
-                await asyncio.wait_for(self.stop_event.wait(), timeout=backoff_seconds)
-            except asyncio.TimeoutError:
-                pass
-            backoff_seconds = min(backoff_seconds * 2, 60.0)
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    await listen_once(
+                        self.config,
+                        self.keyword_engine,
+                        self.sender,
+                        self.send_limiter,
+                        self.ai_responder,
+                        self.chat_context,
+                        self.stream_context,
+                        event_callback=self.emit,
+                        stop_event=self.stop_event,
+                    )
+                    backoff_seconds = 1.0
+                except ConnectionClosed as exc:
+                    message = f"Websocket closed: {exc}. Reconnecting in {backoff_seconds:.1f}s"
+                    print(message)
+                    await self.emit({"type": "status", "level": "warning", "message": message})
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    message = f"Listener error: {exc}. Reconnecting in {backoff_seconds:.1f}s"
+                    print(message)
+                    await self.emit({"type": "status", "level": "error", "message": message})
+
+                try:
+                    await asyncio.wait_for(self.stop_event.wait(), timeout=backoff_seconds)
+                except asyncio.TimeoutError:
+                    pass
+                backoff_seconds = min(backoff_seconds * 2, 60.0)
+        finally:
+            if vision_task:
+                vision_task.cancel()
+                try:
+                    await vision_task
+                except asyncio.CancelledError:
+                    pass
 
 
 class KeywordEngine:
@@ -514,6 +558,12 @@ def load_config() -> BotConfig:
         num_predict=int(raw_ai.get("num_predict", 80)),
         system_prompt=str(raw_ai.get("system_prompt", "")),
     )
+    raw_vision = raw_config.get("vision", {})
+    vision = VisionConfig(
+        enabled=bool(raw_vision.get("enabled", False)),
+        model=str(raw_vision.get("model", "llava")),
+        frame_interval_seconds=int(raw_vision.get("frame_interval_seconds", 4)),
+    )
     personalities = {
         str(name): str(prompt)
         for name, prompt in raw_config.get("personalities", {}).items()
@@ -551,6 +601,7 @@ def load_config() -> BotConfig:
         trigger_log_path=resolve_path(str(raw_config.get("trigger_log_path", "logs/triggers.jsonl"))),
         outbound=outbound,
         ai=ai,
+        vision=vision,
         personalities=personalities,
         rules=rules,
     )
@@ -753,6 +804,7 @@ async def build_response_text(
     channel: ChannelConfig,
     chat_message: ChatMessage,
     trigger: TriggerCandidate,
+    stream_context: Optional[StreamContext] = None,
 ) -> Optional[str]:
     if trigger.response_mode == "static":
         return trigger.response
@@ -768,16 +820,13 @@ async def build_response_text(
         print("[AI SKIPPED] AI responder was not initialized")
         return None
 
-    request = AIRequest(
-        channel=channel.name,
-        username=chat_message.username,
-        content=chat_message.content,
-        matched_phrase=trigger.matched_phrase,
-        trigger_label=trigger.trigger_label,
-        personality_name=trigger.personality,
-        personality_prompt=config.personalities[trigger.personality],
-        instruction=trigger.ai_instruction,
-        recent_chat=chat_context.recent(channel.name),
+    request = build_coordinated_ai_request(
+        config=config,
+        channel=channel,
+        message=chat_message,
+        trigger=trigger,
+        recent_chat_fallback=chat_context.recent(channel.name),
+        stream_context=stream_context,
     )
     response = await asyncio.to_thread(ai_responder.generate, request)
 
@@ -800,6 +849,7 @@ async def listen_once(
     send_limiter: SendLimiter,
     ai_responder: Optional[OllamaResponder],
     chat_context: ChatContext,
+    stream_context: Optional[StreamContext] = None,
     event_callback: Optional[EventCallback] = None,
     stop_event: Optional[asyncio.Event] = None,
 ) -> None:
@@ -908,6 +958,8 @@ async def listen_once(
             channel_prefix = f"[{channel.name}] " if len(config.channels) > 1 else ""
             print(f"{channel_prefix}{chat_message.username}: {chat_message.content}")
             chat_context.add(channel.name, chat_message.username, chat_message.content)
+            if stream_context is not None:
+                stream_context.add_chat(channel.name, chat_message.username, chat_message.content)
             if event_callback:
                 await event_callback(
                     {
@@ -943,6 +995,7 @@ async def listen_once(
                     channel,
                     chat_message,
                     trigger,
+                    stream_context=stream_context,
                 )
                 if not response_text:
                     continue

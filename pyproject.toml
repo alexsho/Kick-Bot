@@ -29,10 +29,11 @@ kick-bot-channel-lookup = "kick_bot.channel_lookup:main"
 kick-bot-migrate-config = "kick_bot.migrate_config:main"
 kick-bot-test-ai = "kick_bot.test_ai_response:main"
 kick-bot-speech = "kick_bot.speech_listener:main"
+kick-bot-vision = "kick_bot.vision_listener:main"
 kick-bot-suggest-triggers = "kick_bot.trigger_suggester:main"
 
 [tool.setuptools.package-data]
-kick_bot = ["web/*.html"]
+kick_bot = ["web/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

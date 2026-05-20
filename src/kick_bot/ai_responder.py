@@ -16,6 +16,9 @@ class AIRequest:
     personality_prompt: str
     instruction: str
     recent_chat: list[str]
+    recent_speech: list[str] | None = None
+    recent_vision: list[str] | None = None
+    source: str = "chat"
 
 
 @dataclass(frozen=True)
@@ -87,28 +90,53 @@ class OllamaResponder:
         return AIResponse(ok=True, text=text)
 
     def build_prompt(self, request: AIRequest) -> str:
-        recent_chat = "\n".join(request.recent_chat[-12:])
+        recent_chat = "\n".join((request.recent_chat or [])[-12:])
+        recent_speech = "\n".join((request.recent_speech or [])[-6:])
+        recent_vision = "\n".join((request.recent_vision or [])[-4:])
+
+        speech_block = recent_speech or "(no recent speech transcript)"
+        vision_block = recent_vision or "(no visual summaries yet)"
+
         return textwrap.dedent(
             f"""
             You are drafting one short Kick chat reply.
 
+            Identity rules:
+            - You are a viewer in chat, not the streamer.
+            - Do not answer as the streamer.
+            - Do not claim you personally know people unless that is explicitly in the chat.
+            - Do not claim meetings, collabs, plans, DMs, streams, or relationships.
+            - If someone asks the streamer a question, react as a viewer instead of answering for the streamer.
+
             Channel: {request.channel}
+            Input source that triggered this reply: {request.source}
             Trigger label: {request.trigger_label}
-            Trigger phrase found in chat: {request.matched_phrase}
+            Trigger phrase found: {request.matched_phrase}
             Personality: {request.personality_name}
             Personality instructions:
             {request.personality_prompt}
 
-            Trigger instruction: {request.instruction}
+            Trigger instruction:
+            {request.instruction}
 
-            Recent chat:
+            Recent typed chat:
             {recent_chat}
 
-            Message to answer:
+            Recent stream speech transcript:
+            {speech_block}
+
+            Recent visual scene summaries:
+            {vision_block}
+
+            Message/transcript to answer:
             {request.username}: {request.content}
 
-            Use the recent chat for context. Do not over-focus on the trigger word by
-            itself; respond to the conversation around it. Reply with only the chat message text. Keep it short, natural, and under {self.max_response_chars}
+            Use typed chat, speech, and visual context together when available. If speech
+            refers to something on screen, use the visual summaries to understand what it
+            is about. Do not over-focus on the trigger word by itself; respond to the
+            conversation and scene around it.
+
+            Reply with only the chat message text. Keep it short, natural, and under {self.max_response_chars}
             characters. Do not mention that you are an AI.
 
             If you directly mention or reply to a specific username from chat, prefix the username with @.

@@ -302,6 +302,18 @@ The target channel must also have:
 
 When confirmation is enabled, the bot asks in the terminal before posting. Only the exact confirmation input will send.
 
+
+## Shared Chat + Speech + Vision Context
+
+Typed chat and speech-to-text events feed a shared stream context buffer. When the bot generates an AI response, the prompt can include:
+
+- recent typed chat
+- recent stream speech transcript
+- recent visual scene summaries, when a vision listener is added later
+- the current trigger and source message
+
+This lets the model make better sense of what is being said in relation to what is happening on stream. Vision capture is prepared architecturally through `StreamContext.add_vision(...)`, but a full `vision_listener.py` can be added separately.
+
 ## Speech-to-Text Stream Audio
 
 The bot can listen to Kick stream audio and transcribe it locally. The transcript becomes a `StreamAudio` pseudo-message, then passes through the same trigger, AI, send-limit, and Kick-sender pipeline as normal chat.

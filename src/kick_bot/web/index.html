@@ -416,7 +416,16 @@
         headers: { 'Content-Type': 'application/json' },
         ...options
       });
-      if (!response.ok) throw new Error(await response.text());
+
+      if (!response.ok) {
+        let message = await response.text();
+        try {
+          const parsed = JSON.parse(message);
+          message = parsed.error || JSON.stringify(parsed);
+        } catch (_) {}
+        throw new Error(message);
+      }
+
       return response.json();
     }
 
@@ -842,6 +851,11 @@
           addLine(`${channel}<span class="user">${escapeHtml(data.username)}</span>: ${escapeHtml(data.content)}`);
         } else if (data.type === 'speech_trigger') {
           addLine(`[speech-ai] ${escapeHtml(data.channel)} ${escapeHtml(data.rule_name)} / ${escapeHtml(data.matched_phrase)}: ${escapeHtml(data.response)}`, 'msg candidate');
+        } else if (data.type === 'vision') {
+          const channel = data.channel ? `<span class="status">[vision/${escapeHtml(data.channel)}]</span> ` : '';
+          addLine(`${channel}${escapeHtml(data.content)}`);
+        } else if (data.type === 'coordinated_ai') {
+          addLine(`[coordinated-ai] ${escapeHtml(data.channel)}: ${escapeHtml(data.response)}`, 'msg candidate');
         }
       };
       ws.onclose = () => setTimeout(connectWs, 1000);

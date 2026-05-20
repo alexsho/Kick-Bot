@@ -16,6 +16,7 @@ from .channel_resolver import resolve_channel
 from .chat_sender import KickChatSender
 from .env_loader import read_env, write_env
 from .listener import BotRuntime, CONFIG_PATH, load_config
+from .stream_context import StreamContext
 
 
 ROOT = Path.cwd()
@@ -28,6 +29,7 @@ runtime_task: asyncio.Task[Any] | None = None
 speech_task: asyncio.Task[Any] | None = None
 speech_stop_event: asyncio.Event | None = None
 runtime: BotRuntime | None = None
+shared_stream_context: StreamContext | None = None
 
 
 def config_file() -> Path:
@@ -98,19 +100,25 @@ async def status() -> dict[str, Any]:
         "dry_run": config.dry_run,
         "outbound_enabled": config.outbound.enabled,
         "ai_enabled": config.ai.enabled,
+        "vision_enabled": config.vision.enabled,
+        "vision_model": config.vision.model,
         "ai_model": config.ai.model,
         "recent_events": len(RECENT_EVENTS),
+        "shared_context": shared_stream_context is not None,
     }
 
 
 @app.post("/api/bot/start")
 async def start_bot() -> JSONResponse:
-    global runtime, runtime_task, speech_task, speech_stop_event
+    global runtime, runtime_task, speech_task, speech_stop_event, shared_stream_context
 
     if runtime_task and not runtime_task.done():
         return JSONResponse({"ok": True, "message": "Bot already running"})
 
-    runtime = BotRuntime(event_callback=broadcast)
+    config = load_config()
+    shared_stream_context = StreamContext(config.ai.max_context_messages * 3)
+
+    runtime = BotRuntime(event_callback=broadcast, stream_context=shared_stream_context)
     runtime_task = asyncio.create_task(runtime.run_forever())
 
     config = load_config()
@@ -128,6 +136,7 @@ async def start_bot() -> JSONResponse:
                 username="StreamAudio",
                 event_callback=broadcast,
                 stop_event=speech_stop_event,
+                stream_context=shared_stream_context,
             )
         )
         await broadcast({
@@ -142,7 +151,7 @@ async def start_bot() -> JSONResponse:
 
 @app.post("/api/bot/stop")
 async def stop_bot() -> JSONResponse:
-    global runtime, runtime_task, speech_task, speech_stop_event
+    global runtime, runtime_task, speech_task, speech_stop_event, shared_stream_context
 
     if runtime:
         runtime.request_stop()
@@ -168,6 +177,7 @@ async def stop_bot() -> JSONResponse:
     runtime_task = None
     speech_task = None
     speech_stop_event = None
+    shared_stream_context = None
 
     await broadcast({"type": "status", "level": "info", "message": "Bot stopped"})
     return JSONResponse({"ok": True})
@@ -293,11 +303,15 @@ async def suggest_triggers(payload: dict[str, Any]) -> JSONResponse:
 
     messages = recent_messages_for_channel(channel=channel, max_messages=max_messages)
 
+    if not messages and channel:
+        messages = recent_messages_for_channel(channel=None, max_messages=max_messages)
+        channel = None
+
     if not messages:
         return JSONResponse(
             {
                 "ok": False,
-                "error": "No recent chat or speech messages found for this channel yet.",
+                "error": "No recent chat or speech messages found yet. Let the bot run for 30-60 seconds, then try again.",
             },
             status_code=400,
         )

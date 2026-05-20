@@ -24,3 +24,25 @@
 - AI can generate local candidates.
 - Sending is disabled unless explicitly enabled.
 - First live send mode still asks for confirmation and allows one send per run.
+
+
+## Shared Stream Context
+
+The bot now has a shared `StreamContext` buffer used by typed chat, speech-to-text, and future vision summaries.
+
+```text
+Typed chat listener  ─┐
+Speech listener      ├─ StreamContext ── Response coordinator ── Ollama ── KickChatSender
+Vision listener      ┘
+```
+
+This keeps input listeners independent while allowing the AI prompt to include:
+
+- recent typed chat
+- recent stream speech transcript
+- recent visual scene summaries, when available
+- the current trigger and message/transcript that caused the response
+
+Speech and vision are primarily treated as context. A trigger can still come from typed chat or speech, but the generated response can use all available context for that channel.
+
+The vision listener is not required for the shared context to work. When a future `vision_listener.py` adds summaries with `StreamContext.add_vision(...)`, those summaries will automatically become available to coordinated AI prompts.

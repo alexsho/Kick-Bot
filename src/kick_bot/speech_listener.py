@@ -1,8 +1,11 @@
 import argparse
 import asyncio
+import os
+import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 from faster_whisper import WhisperModel
@@ -18,6 +21,7 @@ from .listener import (
 )
 from .ai_responder import OllamaResponder
 from .chat_sender import KickChatSender
+from .stream_context import StreamContext
 
 
 SAMPLE_RATE = 16000
@@ -58,13 +62,37 @@ def get_stream_url(channel: str) -> str:
     return urls[0]
 
 
+def resolve_ffmpeg_executable() -> str:
+    """
+    Resolve ffmpeg without hard-coding a user-specific path.
+
+    Priority:
+    1. FFMPEG_EXE environment variable
+    2. ffmpeg on PATH
+    3. common WinGet link path on Windows
+    """
+    configured = os.getenv("FFMPEG_EXE", "").strip()
+    if configured:
+        return configured
+
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+
+    winget_link = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Links" / "ffmpeg.exe"
+    if winget_link.exists():
+        return str(winget_link)
+
+    return "ffmpeg"
+
+
 def start_ffmpeg_audio(stream_url: str) -> subprocess.Popen:
     """
     Starts ffmpeg and outputs raw 16 kHz mono PCM audio to stdout.
     """
     return subprocess.Popen(
         [
-            r"C:\Users\Alexander\AppData\Local\Microsoft\WinGet\Links\ffmpeg.exe",
+            resolve_ffmpeg_executable(),
             "-hide_banner",
             "-loglevel",
             "error",
@@ -125,6 +153,7 @@ async def process_transcript(
     send_limiter: SendLimiter,
     ai_responder: Optional[OllamaResponder],
     chat_context: ChatContext,
+    stream_context: Optional[StreamContext] = None,
 ) -> None:
     if not transcript:
         return
@@ -141,6 +170,8 @@ async def process_transcript(
     print(f"[speech/{channel.name}] {username}: {transcript}")
 
     chat_context.add(channel.name, username, transcript)
+    if stream_context is not None:
+        stream_context.add_speech(channel.name, transcript, username=username)
 
     chat_message = ChatMessage(
         message_id=None,
@@ -163,6 +194,7 @@ async def process_transcript(
         channel=channel,
         chat_message=chat_message,
         trigger=trigger,
+        stream_context=stream_context,
     )
 
     if not response_text:
@@ -190,6 +222,7 @@ async def run_speech_listener(
     username: str = "StreamAudio",
     event_callback=None,
     stop_event: Optional[asyncio.Event] = None,
+    stream_context: Optional[StreamContext] = None,
 ) -> None:
     config = load_config()
 
@@ -217,6 +250,8 @@ async def run_speech_listener(
     )
 
     chat_context = ChatContext(config.ai.max_context_messages)
+    if stream_context is None:
+        stream_context = StreamContext(config.ai.max_context_messages * 3)
 
     async def emit(event: dict) -> None:
         if event_callback:
