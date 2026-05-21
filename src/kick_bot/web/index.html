@@ -245,6 +245,10 @@
             </label>
             <label>Max Sends Per Run
               <input id="channelMaxSends" type="number" min="0" />
+              <label class="inline" style="margin-top: 4px;">
+                <input id="channelMaxSendsUnlimited" type="checkbox" />
+                Unlimited
+              </label>
             </label>
           </div>
           <div class="row" style="margin-top: 10px;">
@@ -276,6 +280,10 @@
             </label>
             <label>Global Max Sends
               <input id="globalMaxSends" type="number" min="0" />
+              <label class="inline" style="margin-top: 4px;">
+                <input id="globalMaxSendsUnlimited" type="checkbox" />
+                Unlimited
+              </label>
             </label>
           </div>
         </div>
@@ -361,12 +369,14 @@
       'chatroomId',
       'broadcasterUserId',
       'channelMaxSends',
+      'channelMaxSendsUnlimited',
       'channelEnabled',
       'sendEnabled',
       'dryRun',
       'outboundEnabled',
       'outboundType',
       'globalMaxSends',
+      'globalMaxSendsUnlimited',
       'aiEnabled',
       'personality',
       'responseChance',
@@ -394,6 +404,17 @@
 
     document.addEventListener('change', event => {
       if (configFieldIds.has(event.target.id)) markDirty(event.target);
+    });
+
+    document.addEventListener('change', event => {
+      if (event.target.id === 'channelMaxSendsUnlimited') {
+        document.getElementById('channelMaxSends').disabled = event.target.checked;
+        if (event.target.checked) document.getElementById('channelMaxSends').value = '';
+      }
+      if (event.target.id === 'globalMaxSendsUnlimited') {
+        document.getElementById('globalMaxSends').disabled = event.target.checked;
+        if (event.target.checked) document.getElementById('globalMaxSends').value = '';
+      }
     });
 
     function addLine(html, cls = 'msg') {
@@ -489,7 +510,10 @@
       document.getElementById('channelName').value = channel.name || '';
       document.getElementById('chatroomId').value = channel.chatroom_id || '';
       document.getElementById('broadcasterUserId').value = channel.broadcaster_user_id ?? '';
-      document.getElementById('channelMaxSends').value = channel.max_sends_per_run ?? 1;
+      const channelMaxUnlimited = channel.max_sends_per_run === null || channel.max_sends_per_run === undefined;
+      document.getElementById('channelMaxSendsUnlimited').checked = channelMaxUnlimited;
+      document.getElementById('channelMaxSends').disabled = channelMaxUnlimited;
+      document.getElementById('channelMaxSends').value = channelMaxUnlimited ? '' : channel.max_sends_per_run;
       document.getElementById('channelEnabled').checked = channel.enabled !== false;
       document.getElementById('sendEnabled').checked = Boolean(channel.send_enabled);
       document.getElementById('channelJsonSummary').textContent = `JSON for kick.com/${channel.name || 'channel'}`;
@@ -497,7 +521,10 @@
       document.getElementById('dryRun').checked = Boolean(currentConfig.dry_run);
       document.getElementById('outboundEnabled').checked = Boolean(currentConfig.outbound?.enabled);
       document.getElementById('outboundType').value = currentConfig.outbound?.type || 'user';
-      document.getElementById('globalMaxSends').value = currentConfig.outbound?.max_sends_per_run ?? 1;
+      const globalMaxUnlimited = currentConfig.outbound?.max_sends_per_run === null || currentConfig.outbound?.max_sends_per_run === undefined;
+      document.getElementById('globalMaxSendsUnlimited').checked = globalMaxUnlimited;
+      document.getElementById('globalMaxSends').disabled = globalMaxUnlimited;
+      document.getElementById('globalMaxSends').value = globalMaxUnlimited ? '' : currentConfig.outbound.max_sends_per_run;
       document.getElementById('aiEnabled').checked = Boolean(currentConfig.ai?.enabled);
       document.getElementById('aiModel').value = currentConfig.ai?.model || 'llama3.2';
       document.getElementById('topicTriggers').value = (rule.match || []).join('\n');
@@ -532,7 +559,9 @@
       channel.name = document.getElementById('channelName').value.trim();
       channel.chatroom_id = document.getElementById('chatroomId').value.trim();
       channel.broadcaster_user_id = numberOrNull(document.getElementById('broadcasterUserId').value);
-      channel.max_sends_per_run = numberOrNull(document.getElementById('channelMaxSends').value);
+      channel.max_sends_per_run = document.getElementById('channelMaxSendsUnlimited').checked
+        ? null
+        : numberOrNull(document.getElementById('channelMaxSends').value);
       channel.enabled = document.getElementById('channelEnabled').checked;
       channel.send_enabled = document.getElementById('sendEnabled').checked;
 
@@ -541,7 +570,9 @@
       currentConfig.dry_run = document.getElementById('dryRun').checked;
       currentConfig.outbound.enabled = document.getElementById('outboundEnabled').checked;
       currentConfig.outbound.type = document.getElementById('outboundType').value;
-      currentConfig.outbound.max_sends_per_run = numberOrNull(document.getElementById('globalMaxSends').value);
+      currentConfig.outbound.max_sends_per_run = document.getElementById('globalMaxSendsUnlimited').checked
+        ? null
+        : numberOrNull(document.getElementById('globalMaxSends').value);
       currentConfig.ai.enabled = document.getElementById('aiEnabled').checked;
       currentConfig.ai.model = document.getElementById('aiModel').value.trim();
 
@@ -631,7 +662,7 @@
         enabled: true,
         send_enabled: false,
         broadcaster_user_id: null,
-        max_sends_per_run: 1
+        max_sends_per_run: null
       });
       selectedChannelIndex = currentConfig.channels.length - 1;
       setDirty(true);
