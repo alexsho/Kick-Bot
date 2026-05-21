@@ -149,32 +149,6 @@ async def start_bot() -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def _cancel_task_safely(task: asyncio.Task[Any] | None, label: str) -> None:
-    """
-    Cancel a background task without letting its prior exception break the API.
-
-    This matters when a listener task already failed before /api/bot/stop is called.
-    Example: yt-dlp raises RuntimeError because the selected Kick channel is offline.
-    Awaiting that failed task directly would re-raise and make Stop return HTTP 500.
-    """
-    if task is None:
-        return
-
-    if not task.done():
-        task.cancel()
-
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
-    except Exception as exc:
-        await broadcast({
-            "type": "status",
-            "level": "warning",
-            "message": f"{label} stopped after error: {exc}",
-        })
-
-
 @app.post("/api/bot/stop")
 async def stop_bot() -> JSONResponse:
     global runtime, runtime_task, speech_task, speech_stop_event, shared_stream_context
@@ -185,8 +159,19 @@ async def stop_bot() -> JSONResponse:
     if speech_stop_event:
         speech_stop_event.set()
 
-    await _cancel_task_safely(speech_task, "Speech listener")
-    await _cancel_task_safely(runtime_task, "Bot runtime")
+    if speech_task:
+        speech_task.cancel()
+        try:
+            await speech_task
+        except asyncio.CancelledError:
+            pass
+
+    if runtime_task:
+        runtime_task.cancel()
+        try:
+            await runtime_task
+        except asyncio.CancelledError:
+            pass
 
     runtime = None
     runtime_task = None
@@ -207,47 +192,6 @@ async def get_config() -> dict[str, Any]:
 async def put_config(config: dict[str, Any]) -> JSONResponse:
     save_raw_config(config)
     await broadcast({"type": "status", "level": "info", "message": "Config saved"})
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/config/trigger-sources")
-async def get_trigger_sources() -> dict[str, Any]:
-    config = load_config()
-    return {
-        "chat_percentage": config.trigger_sources.chat_percentage,
-        "speech_percentage": config.trigger_sources.speech_percentage,
-        "vision_percentage": config.trigger_sources.vision_percentage,
-    }
-
-
-@app.put("/api/config/trigger-sources")
-async def put_trigger_sources(sources: dict[str, float]) -> JSONResponse:
-    raw_config = load_raw_config()
-    
-    chat_pct = float(sources.get("chat_percentage", 20))
-    speech_pct = float(sources.get("speech_percentage", 80))
-    vision_pct = float(sources.get("vision_percentage", 0))
-    
-    # Validate percentages
-    total = chat_pct + speech_pct + vision_pct
-    if abs(total - 100.0) > 0.01:
-        return JSONResponse(
-            {"ok": False, "error": f"Percentages must sum to 100, got {total}"},
-            status_code=400,
-        )
-    if not (0 <= chat_pct <= 100 and 0 <= speech_pct <= 100 and 0 <= vision_pct <= 100):
-        return JSONResponse(
-            {"ok": False, "error": "Each percentage must be between 0 and 100"},
-            status_code=400,
-        )
-    
-    raw_config["trigger_sources"] = {
-        "chat_percentage": chat_pct,
-        "speech_percentage": speech_pct,
-        "vision_percentage": vision_pct,
-    }
-    save_raw_config(raw_config)
-    await broadcast({"type": "status", "level": "info", "message": "Trigger sources updated"})
     return JSONResponse({"ok": True})
 
 

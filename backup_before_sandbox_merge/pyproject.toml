@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kick-local-bot"
+version = "0.1.0"
+description = "Local Kick chat listener, trigger engine, and AI response runtime."
+requires-python = ">=3.10"
+dependencies = [
+  "cryptography>=43.0.0",
+  "fastapi>=0.115.0",
+  "requests>=2.32.0",
+  "tls-client>=1.0.1",
+  "uvicorn>=0.32.0",
+  "websockets>=14.0",
+  "faster-whisper>=1.1.0",
+  "yt-dlp[curl-cffi]>=2026.3.17",
+  "curl-cffi>=0.14.0",
+]
+
+[project.scripts]
+kick-bot = "kick_bot.listener:main"
+kick-bot-add-channel = "kick_bot.add_channel:main"
+kick-bot-web = "kick_bot.web_app:main"
+kick-bot-config = "kick_bot.config_tool:main"
+kick-bot-login = "kick_bot.oauth_login:main"
+kick-bot-channel-lookup = "kick_bot.channel_lookup:main"
+kick-bot-migrate-config = "kick_bot.migrate_config:main"
+kick-bot-test-ai = "kick_bot.test_ai_response:main"
+kick-bot-speech = "kick_bot.speech_listener:main"
+kick-bot-vision = "kick_bot.vision_listener:main"
+kick-bot-suggest-triggers = "kick_bot.trigger_suggester:main"
+
+[tool.setuptools.package-data]
+kick_bot = ["web/*"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

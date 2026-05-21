@@ -70,11 +70,6 @@ DEFAULT_CONFIG = {
         "model": "llava",
         "frame_interval_seconds": 4,
     },
-    "trigger_sources": {
-        "chat_percentage": 20,
-        "speech_percentage": 80,
-        "vision_percentage": 0,
-    },
     "personalities": {
         "casual": (
             "Sound like a relaxed regular in chat. Keep replies casual, brief, "
@@ -98,9 +93,6 @@ DEFAULT_CONFIG = {
             "match": ["hello", "hey chat"],
             "responses": ["Hey chat!", "What's up everyone?"],
             "cooldown_seconds": 30,
-            "chat_percentage": 20,
-            "speech_percentage": 80,
-            "vision_percentage": 0,
         },
         {
             "name": "giveaway",
@@ -109,9 +101,6 @@ DEFAULT_CONFIG = {
             "match": ["giveaway"],
             "responses": ["I'm in!", "Count me in!", "Let's goooo"],
             "cooldown_seconds": 60,
-            "chat_percentage": 20,
-            "speech_percentage": 80,
-            "vision_percentage": 0,
         },
     ],
 }
@@ -168,9 +157,6 @@ class KeywordRule:
     personality: str
     trigger_label: str
     response_chance: float
-    chat_percentage: float = 20.0
-    speech_percentage: float = 80.0
-    vision_percentage: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -218,27 +204,6 @@ class VisionConfig:
     frame_interval_seconds: int
 
 
-@dataclass(frozen=True)
-class TriggerSourceConfig:
-    chat_percentage: float
-    speech_percentage: float
-    vision_percentage: float
-
-    def __post_init__(self) -> None:
-        # Validate percentages sum to 100 (with small float tolerance)
-        total = self.chat_percentage + self.speech_percentage + self.vision_percentage
-        if abs(total - 100.0) > 0.01:
-            raise ValueError(
-                f"Trigger source percentages must sum to 100, got {total}"
-            )
-        if not (0 <= self.chat_percentage <= 100):
-            raise ValueError(f"chat_percentage must be 0-100, got {self.chat_percentage}")
-        if not (0 <= self.speech_percentage <= 100):
-            raise ValueError(f"speech_percentage must be 0-100, got {self.speech_percentage}")
-        if not (0 <= self.vision_percentage <= 100):
-            raise ValueError(f"vision_percentage must be 0-100, got {self.vision_percentage}")
-
-
 class SendLimiter:
     def __init__(self, max_sends_per_run: Optional[int]) -> None:
         self.max_sends_per_run = max_sends_per_run
@@ -277,7 +242,6 @@ class BotConfig:
     outbound: OutboundConfig
     ai: AIConfig
     vision: VisionConfig
-    trigger_sources: TriggerSourceConfig
     personalities: dict[str, str]
     rules: list[KeywordRule]
 
@@ -291,13 +255,6 @@ class TriggerCandidate:
     ai_instruction: str
     personality: str
     trigger_label: str
-    chat_percentage: float = 20.0
-    speech_percentage: float = 80.0
-    vision_percentage: float = 0.0
-
-    @property
-    def name(self) -> str:
-        return self.rule_name
 
 
 class ChatContext:
@@ -456,9 +413,6 @@ class KeywordEngine:
                 ai_instruction=rule.ai_instruction,
                 personality=rule.personality,
                 trigger_label=rule.trigger_label,
-                chat_percentage=rule.chat_percentage,
-                speech_percentage=rule.speech_percentage,
-                vision_percentage=rule.vision_percentage,
             )
 
         return None
@@ -527,34 +481,6 @@ def resolve_path(path_value: str) -> Path:
     config_parent = CONFIG_PATH.parent
     project_root = config_parent.parent if config_parent.name == "config" else config_parent
     return project_root / path
-
-
-def pick_trigger_source(config: "TriggerSourceConfig") -> str:
-    """
-    Probabilistically pick which source should trigger a response based on percentages.
-    Returns: "chat", "speech", or "vision"
-    """
-    rand = random.random() * 100
-    if rand < config.chat_percentage:
-        return "chat"
-    elif rand < config.chat_percentage + config.speech_percentage:
-        return "speech"
-    else:
-        return "vision"
-
-
-def pick_trigger_source_from_rule(rule: "KeywordRule") -> str:
-    """
-    Probabilistically pick which source should trigger response for a specific rule.
-    Returns: "chat", "speech", or "vision"
-    """
-    rand = random.random() * 100
-    if rand < rule.chat_percentage:
-        return "chat"
-    elif rand < rule.chat_percentage + rule.speech_percentage:
-        return "speech"
-    else:
-        return "vision"
 
 
 def load_config() -> BotConfig:
@@ -656,19 +582,9 @@ def load_config() -> BotConfig:
             personality=str(rule.get("personality", "casual")),
             trigger_label=str(rule.get("trigger_label", rule["name"])),
             response_chance=float(rule.get("response_chance", 1.0)),
-            chat_percentage=float(rule.get("chat_percentage", 20)),
-            speech_percentage=float(rule.get("speech_percentage", 80)),
-            vision_percentage=float(rule.get("vision_percentage", 0)),
         )
         for rule in raw_config.get("keywords", [])
     ]
-
-    raw_trigger_sources = raw_config.get("trigger_sources", {})
-    trigger_sources = TriggerSourceConfig(
-        chat_percentage=float(raw_trigger_sources.get("chat_percentage", 20)),
-        speech_percentage=float(raw_trigger_sources.get("speech_percentage", 80)),
-        vision_percentage=float(raw_trigger_sources.get("vision_percentage", 0)),
-    )
 
     return BotConfig(
         channels=[channel for channel in channels if channel.enabled],
@@ -686,7 +602,6 @@ def load_config() -> BotConfig:
         outbound=outbound,
         ai=ai,
         vision=vision,
-        trigger_sources=trigger_sources,
         personalities=personalities,
         rules=rules,
     )
@@ -1073,14 +988,6 @@ async def listen_once(
 
             trigger = keyword_engine.match(channel.name, chat_message.content)
             if trigger:
-                # Use per-rule source distribution
-                chosen_source = pick_trigger_source_from_rule(trigger)
-                
-                # Check if this trigger should respond to chat messages
-                if chosen_source != "chat":
-                    print(f"[TRIGGER SKIPPED] {trigger.name} matched on chat but rule distribution chose '{chosen_source}'")
-                    continue
-
                 response_text = await build_response_text(
                     config,
                     ai_responder,
@@ -1109,7 +1016,6 @@ async def listen_once(
                         "personality": trigger.personality,
                         "response": response_text,
                         "dry_run": config.dry_run,
-                        "source": "chat",
                     },
                 )
                 label = "AI RESPONSE CANDIDATE" if trigger.response_mode == "ai" else "BOT RESPONSE CANDIDATE"

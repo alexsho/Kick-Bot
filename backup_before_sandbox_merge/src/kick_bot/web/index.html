@@ -287,6 +287,7 @@
             </label>
           </div>
         </div>
+
         <div class="tool-panel">
           <h2>Topic AI</h2>
           <div class="grid2" style="margin-top: 10px;">
@@ -312,46 +313,6 @@
           <label style="margin-top: 10px;">AI Instruction
             <textarea id="aiInstruction"></textarea>
           </label>
-
-          <div style="margin-top: 14px; padding: 10px; background: #121714; border-radius: 6px;">
-            <h3 style="margin: 0 0 10px 0;">Source Distribution for This Trigger</h3>
-            <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px 0;">
-              Controls which source (Chat, Voice, Vision) should trigger responses. When a trigger is detected, the bot will randomly choose a source based on these percentages.
-            </p>
-            <label style="display: block; margin-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 12px;">📝 Chat Messages</span>
-                <span id="topicChatPctDisplay" style="color: var(--accent); font-weight: bold; font-size: 12px;">20%</span>
-              </div>
-              <input id="topicChatPercentage" type="range" min="0" max="100" step="1" value="20" 
-                     style="width: 100%; cursor: pointer;" 
-                     oninput="syncTopicSliderLabels()" />
-              <div style="color: var(--muted); font-size: 11px; margin-top: 2px;">Respond to triggers typed in chat</div>
-            </label>
-            <label style="display: block; margin-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 12px;">🎤 Streamer Voice</span>
-                <span id="topicSpeechPctDisplay" style="color: var(--accent); font-weight: bold; font-size: 12px;">80%</span>
-              </div>
-              <input id="topicSpeechPercentage" type="range" min="0" max="100" step="1" value="80" 
-                     style="width: 100%; cursor: pointer;" 
-                     oninput="syncTopicSliderLabels()" />
-              <div style="color: var(--muted); font-size: 11px; margin-top: 2px;">Respond to triggers heard in stream audio</div>
-            </label>
-            <label style="display: block;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 12px;">👁️ Image Capture</span>
-                <span id="topicVisionPctDisplay" style="color: var(--accent); font-weight: bold; font-size: 12px;">0%</span>
-              </div>
-              <input id="topicVisionPercentage" type="range" min="0" max="100" step="1" value="0" 
-                     style="width: 100%; cursor: pointer;" 
-                     oninput="syncTopicSliderLabels()" />
-              <div style="color: var(--muted); font-size: 11px; margin-top: 2px;">Respond to triggers detected in stream visuals</div>
-            </label>
-            <div style="margin-top: 8px; padding: 6px; background: #0a0c0a; border-radius: 4px; color: var(--muted); font-size: 11px;">
-              <span>Total Distribution: <span id="topicTotalPercentage" style="color: var(--accent); font-weight: bold;">100%</span></span>
-            </div>
-          </div>
         </div>
 
         <div class="row">
@@ -422,10 +383,7 @@
       'topicCooldown',
       'aiModel',
       'topicTriggers',
-      'aiInstruction',
-      'topicChatPercentage',
-      'topicSpeechPercentage',
-      'topicVisionPercentage'
+      'aiInstruction'
     ]);
 
     function setDirty(isDirty) {
@@ -442,16 +400,6 @@
 
     document.addEventListener('input', event => {
       if (configFieldIds.has(event.target.id)) markDirty(event.target);
-    });
-
-    document.addEventListener('input', event => {
-      if (
-        event.target.id === 'topicChatPercentage' ||
-        event.target.id === 'topicSpeechPercentage' ||
-        event.target.id === 'topicVisionPercentage'
-      ) {
-        updateTopicSourceDistribution();
-      }
     });
 
     document.addEventListener('change', event => {
@@ -504,13 +452,7 @@
 
     function topicRule() {
       currentConfig.keywords ||= [];
-
-      // IMPORTANT:
-      // The dashboard Topic AI editor must edit only the general topic_ai rule.
-      // Do not use the first AI rule, because direct_mention_ai must keep
-      // its alexsho/@alexsho triggers permanently.
-      let rule = currentConfig.keywords.find(item => item.name === 'topic_ai');
-
+      let rule = currentConfig.keywords.find(item => item.response_mode === 'ai');
       if (!rule) {
         rule = {
           name: 'topic_ai',
@@ -522,14 +464,10 @@
           cooldown_seconds: 45,
           personality: 'casual',
           trigger_label: 'topic-watch',
-          response_chance: 0.35,
-          chat_percentage: 20,
-          speech_percentage: 60,
-          vision_percentage: 20
+          response_chance: 0.35
         };
         currentConfig.keywords.push(rule);
       }
-
       return rule;
     }
 
@@ -603,10 +541,6 @@
       });
       personality.value = rule.personality || Object.keys(personalities)[0] || 'casual';
       document.getElementById('configJson').value = JSON.stringify(currentConfig, null, 2);
-      document.getElementById('topicChatPercentage').value = rule.chat_percentage ?? 20;
-      document.getElementById('topicSpeechPercentage').value = rule.speech_percentage ?? 80;
-      document.getElementById('topicVisionPercentage').value = rule.vision_percentage ?? 0;
-      updateTopicSourceDistribution();
       updateChanceLabel();
     }
 
@@ -653,9 +587,6 @@
       rule.response_chance = Number(document.getElementById('responseChance').value || 0);
       rule.cooldown_seconds = Number(document.getElementById('topicCooldown').value || 0);
       rule.ai_instruction = document.getElementById('aiInstruction').value.trim();
-      rule.chat_percentage = Number(document.getElementById('topicChatPercentage').value || 20);
-      rule.speech_percentage = Number(document.getElementById('topicSpeechPercentage').value || 80);
-      rule.vision_percentage = Number(document.getElementById('topicVisionPercentage').value || 0);
       document.getElementById('configJson').value = JSON.stringify(currentConfig, null, 2);
     }
 
@@ -925,30 +856,6 @@
       setDirty(true);
 
       result.textContent = 'Suggested triggers applied to the form. Click Apply Changes or Restart to save them.';
-    }
-
-    function syncTopicSliderLabels() {
-      updateTopicSourceDistribution();
-      setDirty(true);
-    }
-
-    function updateTopicSourceDistribution() {
-      const chat = parseFloat(document.getElementById('topicChatPercentage').value) || 0;
-      const speech = parseFloat(document.getElementById('topicSpeechPercentage').value) || 0;
-      const vision = parseFloat(document.getElementById('topicVisionPercentage').value) || 0;
-      const total = chat + speech + vision;
-
-      document.getElementById('topicChatPctDisplay').textContent = Math.round(chat) + '%';
-      document.getElementById('topicSpeechPctDisplay').textContent = Math.round(speech) + '%';
-      document.getElementById('topicVisionPctDisplay').textContent = Math.round(vision) + '%';
-      document.getElementById('topicTotalPercentage').textContent = Math.round(total) + '%';
-
-      const totalEl = document.getElementById('topicTotalPercentage').parentElement;
-      if (Math.abs(total - 100) < 0.1) {
-        totalEl.style.color = 'var(--muted)';
-      } else {
-        totalEl.style.color = 'var(--warn)';
-      }
     }
 
     function clearChat() {

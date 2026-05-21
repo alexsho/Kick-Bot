@@ -422,3 +422,152 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------------------
+# Smart trigger filtering
+# ---------------------------------------------------------------------------
+# This wrapper layer keeps trigger suggestions from filling topic_ai with weak
+# single-word triggers like "good", "more", "right", "dude", "going", etc.
+# It also protects direct mention behavior by blocking alexsho/@alexsho from
+# general topic suggestions.
+
+SMART_TRIGGER_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by",
+    "can", "cant", "can't", "could", "did", "do", "does", "doing", "done",
+    "for", "from", "get", "gets", "getting", "go", "goes", "going", "gone",
+    "good", "got", "gonna", "had", "has", "have", "having", "he", "her",
+    "here", "him", "his", "how", "i", "im", "i'm", "in", "is", "it", "its",
+    "it's", "just", "know", "like", "lol", "lmao", "lmfao", "more", "much",
+    "my", "need", "no", "not", "now", "of", "on", "or", "our", "out",
+    "right", "say", "says", "see", "seeing", "seen", "she", "shit", "so",
+    "some", "someone", "something", "still", "that", "the", "them", "then",
+    "there", "they", "thing", "things", "this", "to", "too", "up", "want",
+    "wants", "was", "we", "well", "were", "what", "when", "where", "who",
+    "why", "with", "yeah", "yes", "you", "your", "youre", "you're", "dude",
+    "bro", "chat", "stream", "time", "back", "look", "looks", "wait",
+    "take", "takes", "make", "makes", "start", "started", "over", "under",
+    "really", "actually", "basically", "literally", "okay", "ok",
+}
+
+SMART_TRIGGER_BLOCKED = {
+    "alexsho", "@alexsho",
+    "adin", "adinross",
+    "larry", "larrywheels",
+    "asmongold", "asmongold247",
+    "clavicular",
+    "stevewilldoit",
+    "fugglet",
+}
+
+def _smart_words(trigger: str) -> list[str]:
+    cleaned = re.sub(r"[^a-zA-Z0-9\s'\-@]", " ", str(trigger).lower())
+    return [part.strip(".,!?;:'\"()[]{}") for part in cleaned.split() if part.strip()]
+
+def is_smart_trigger_candidate(trigger: str) -> bool:
+    normalized = " ".join(str(trigger).strip().split())
+    lowered = normalized.lower()
+
+    if not lowered:
+        return False
+
+    if lowered in SMART_TRIGGER_BLOCKED:
+        return False
+
+    if lowered.startswith("[emote:") or "http://" in lowered or "https://" in lowered:
+        return False
+
+    if re.fullmatch(r"\d+", lowered):
+        return False
+
+    words = _smart_words(lowered)
+
+    if not words:
+        return False
+
+    if any(word in SMART_TRIGGER_BLOCKED for word in words):
+        return False
+
+    # Reject weak single-word triggers.
+    if len(words) == 1:
+        word = words[0]
+        if word in SMART_TRIGGER_STOPWORDS:
+            return False
+        if len(word) < 5:
+            return False
+
+    # Reject phrases that are mostly filler.
+    filler = sum(1 for word in words if word in SMART_TRIGGER_STOPWORDS)
+    if len(words) >= 2 and filler / len(words) > 0.5:
+        return False
+
+    # Reject overly long phrase triggers.
+    if len(words) > 4:
+        return False
+
+    return True
+
+def smart_filter_triggers(triggers: list[str], max_items: int = 40) -> list[str]:
+    seen: set[str] = set()
+    accepted: list[str] = []
+
+    # Prefer meaningful phrases first, then distinctive single words.
+    ordered = sorted(
+        [str(item).strip() for item in triggers if str(item).strip()],
+        key=lambda item: (
+            len(item.split()) < 2,
+            -len(item.split()),
+            len(item),
+        ),
+    )
+
+    for trigger in ordered:
+        normalized = " ".join(trigger.split())
+        key = normalized.lower()
+
+        if key in seen:
+            continue
+
+        if not is_smart_trigger_candidate(normalized):
+            continue
+
+        seen.add(key)
+        accepted.append(normalized)
+
+        if len(accepted) >= max_items:
+            break
+
+    return accepted
+
+def _smart_filter_frequency_items(items: list[tuple[str, int]], max_items: int) -> list[tuple[str, int]]:
+    filtered: list[tuple[str, int]] = []
+    seen: set[str] = set()
+
+    for trigger, count in items:
+        key = trigger.lower().strip()
+        if key in seen:
+            continue
+        if not is_smart_trigger_candidate(trigger):
+            continue
+        seen.add(key)
+        filtered.append((trigger, count))
+        if len(filtered) >= max_items:
+            break
+
+    return filtered
+
+_original_frequency_suggestions = frequency_suggestions
+
+def frequency_suggestions(messages: list[dict[str, str]], top_words: int = 40, top_phrases: int = 40) -> dict[str, list[tuple[str, int]]]:
+    raw = _original_frequency_suggestions(messages, top_words=top_words, top_phrases=top_phrases)
+    return {
+        "words": _smart_filter_frequency_items(raw.get("words", []), top_words),
+        "phrases": _smart_filter_frequency_items(raw.get("phrases", []), top_phrases),
+    }
+
+_original_merge_trigger_lists = merge_trigger_lists
+
+def merge_trigger_lists(frequency: dict[str, list[tuple[str, int]]], ai_result: dict[str, Any] | None = None) -> list[str]:
+    merged = _original_merge_trigger_lists(frequency, ai_result)
+    return smart_filter_triggers(merged)
+
